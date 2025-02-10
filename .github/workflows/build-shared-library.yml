@@ -1,0 +1,20 @@
+name: build shared library
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: init cmake
+      run: cmake -S .
+    - name: build shared library
+      run: make
+
