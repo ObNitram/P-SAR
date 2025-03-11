@@ -1,4 +1,5 @@
 #pragma once
+#include <stddef.h>
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///
