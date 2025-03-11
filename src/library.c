@@ -1,10 +1,14 @@
 #include "library.h"
 
+#include <assert.h>
 #include <stdio.h>
 
 
 void *Init_DSM(size_t size, int port)
 {
+	// init memory
+	// init internal data
+	// init sigaction
 	// TODO: InitNode
 	return NULL;
 }
