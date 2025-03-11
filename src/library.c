@@ -2,16 +2,35 @@
 
 #include <stdio.h>
 
-#include "utils/utils.h"
 
-void hello(void)
+void *Init_DSM(size_t size, int port)
 {
-	printf("Hello, World!\n");
+	// TODO: InitNode
+	return NULL;
+}
 
-	int a = 1;
-	int b = 3;
+void *join_DSM(char *host, int port)
+{
+	// TODO: AddNode
+	return NULL;
+}
 
-	int c = add(a, b);
+void lock_read(void *adr, size_t s)
+{
+	// TODO: lock_read
+}
 
-	printf("%i + %i = %i", a, b, c);
+void unlock_read(void *adr, size_t s)
+{
+	// TODO: unlock_read
+}
+
+void lock_write(void *adr, size_t s)
+{
+	// TODO: lock_write
+}
+
+void unlock_write(void *adr, size_t s)
+{
+	// TODO: unlock_write
 }
