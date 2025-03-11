@@ -5,8 +5,9 @@
 /// This function allocates and initializes a distributed shared memory region for the initial node.
 ///
 /// @param size The size (in bytes) of the shared memory to initialize.
+/// @param port The port you use to communicate
 /// @return A pointer to the allocated shared memory region.
-void *InitNode(int size);
+void *Init_DSM(size_t size, int port);
 
 
 /// @brief Adds a new node to the distributed shared memory system by connecting to an existing node.
@@ -15,8 +16,9 @@ void *InitNode(int size);
 /// the node at the specified host address and returns the address of the shared memory region.
 ///
 /// @param host The hostname or IP address of the existing node to connect to.
+/// @param port The port you use to communicate
 /// @return A pointer to the shared memory region.
-void *AddNode(char *host);
+void *join_DSM(char *host, int port);
 
 
 /// @brief Requests a read lock for the specified memory region.
@@ -26,7 +28,7 @@ void *AddNode(char *host);
 ///
 /// @param adr A pointer to the memory region to lock for reading.
 /// @param s The size (in bytes) of the memory region to lock.
-void lock_read(void *adr, int s);
+void lock_read(void *adr, size_t s);
 
 
 /// @brief Releases the read lock for the specified memory region.
@@ -35,7 +37,7 @@ void lock_read(void *adr, int s);
 ///
 /// @param adr A pointer to the memory region whose read lock is to be released.
 /// @param s The size (in bytes) of the memory region.
-void unlock_read(void *adr, int s);
+void unlock_read(void *adr, size_t s);
 
 
 /// @brief Requests a write lock for the specified memory region.
@@ -45,7 +47,7 @@ void unlock_read(void *adr, int s);
 ///
 /// @param adr A pointer to the memory region to lock for writing.
 /// @param s The size (in bytes) of the memory region to lock.
-void lock_write(void *adr, int s);
+void lock_write(void *adr, size_t s);
 
 
 /// @brief Releases the write lock for the specified memory region.
@@ -54,4 +56,4 @@ void lock_write(void *adr, int s);
 ///
 /// @param adr A pointer to the memory region whose write lock is to be released.
 /// @param s The size (in bytes) of the memory region.
-void unlock_write(void *adr, int s);
+void unlock_write(void *adr, size_t s);
