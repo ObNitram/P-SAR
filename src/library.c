@@ -3,34 +3,34 @@
 #include <stdio.h>
 
 
-void *InitNode(int size)
+void *Init_DSM(size_t size, int port)
 {
 	// TODO: InitNode
 	return NULL;
 }
 
-void *AddNode(char *host)
+void *join_DSM(char *host, int port)
 {
 	// TODO: AddNode
 	return NULL;
 }
 
-void lock_read(void *adr, int s)
+void lock_read(void *adr, size_t s)
 {
 	// TODO: lock_read
 }
 
-void unlock_read(void *adr, int s)
+void unlock_read(void *adr, size_t s)
 {
 	// TODO: unlock_read
 }
 
-void lock_write(void *adr, int s)
+void lock_write(void *adr, size_t s)
 {
 	// TODO: lock_write
 }
 
-void unlock_write(void *adr, int s)
+void unlock_write(void *adr, size_t s)
 {
 	// TODO: unlock_write
 }
