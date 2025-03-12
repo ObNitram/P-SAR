@@ -9,7 +9,7 @@
          It can be set to any valid FILE pointer (e.g., stdout, stderr, or a file opened with fopen).
          By default, the stream is set to stdout.
 */
-FILE *g_log_stream = stderr;
+FILE *g_log_stream;
 
 /*
 @brief Internal function that logs a message with detailed context information.
@@ -29,7 +29,7 @@ FILE *g_log_stream = stderr;
 @params function The function name.
 @params line The line number.
 */
-inline void log_message_internal(char *level, char *message, const char *file,
+void log_message_internal(char *level, char *message, const char *file,
                                  const char *function, int line)
 {
 	// Get the current time as a Unix timestamp (seconds since the epoch)
@@ -97,7 +97,7 @@ do {						\
 @params condition The condition to evaluate.
 @params message The message to log if the condition is false.
 */
-#define ensure_warning(condition, message) ensure(condition, message, "WARNING")
+#define ensure_warning(condition, message) ensure(condition, "WARNING", message)
 
 /*
 @brief Macro variant to ensure a condition is true.
@@ -105,4 +105,4 @@ do {						\
 @params condition The condition to evaluate.
 @params message The message to log if the condition is false.
 */
-#define ensure_error(condition, message) ensure(condition, message, "ERROR")
+#define ensure_error(condition, message) ensure(condition, "ERROR", message)

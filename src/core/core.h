@@ -47,7 +47,7 @@ struct page {
 
 /// TABLEAU a taille fix ou pas ? Difficulter pour l'agrandissement dynamique de la ram
 /// mais es ce vraiment un cas d'utilisation ???
-struct pages *page_info;
+struct page *page_info;
 
 
 void ask_lock(struct page *page, int lock_type);
