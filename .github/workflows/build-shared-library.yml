@@ -2,7 +2,7 @@ name: build shared library
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "*" ]
   pull_request:
     branches: [ "main" ]
 
@@ -12,9 +12,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: init cmake
-      run: cmake -S .
-    - name: build shared library
-      run: make
+      - uses: actions/checkout@v4
+
+      - name: init cmake
+        run: cmake -S .
+
+      - name: build shared library
+        run: make
+
+      - name: run main
+        run: ./build/main-psar
+
+      - name: run gtest
+        run: make test
 

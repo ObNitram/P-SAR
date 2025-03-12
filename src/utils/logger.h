@@ -11,6 +11,21 @@
 */
 FILE *g_log_stream;
 
+// Macro to initialize the logger and log the initialization and output stream definition
+#define init_logger(stream) do {							\
+    g_log_stream = stream;								\
+    /* Log that the logger has been initialized */					\
+    log_info("Logger initialized.");							\
+    /* Log the output stream based on its value: stdout, stderr or pointer value */	\
+    if ((stream) == stdout) {								\
+        log_info("Output stream defined on: stdout.");					\
+    } else if ((stream) == stderr) {							\
+        log_info("Output stream defined on: stderr.");					\
+    } else {										\
+        log_info("Output stream defined on: %p", (void*)(stream));			\
+    }											\
+} while (0)
+
 /*
 @brief Internal function that logs a message with detailed context information.
 @details The log message is formatted as follows:
@@ -24,7 +39,7 @@ FILE *g_log_stream;
            - <Line>: Line number in the source file.
            - <Message>: The log message to be recorded.
 @params level The logging level (e.g., "INFO", "DEBUG", "ERROR").
-@params message The message to log.
+@params message The formatted log message to log.
 @params file The source file name.
 @params function The function name.
 @params line The line number.
@@ -44,65 +59,76 @@ void log_message_internal(char *level, char *message, const char *file,
 }
 
 /*
-@brief Macro wrapper for log_message_internal to automatically include file, function, and line information.
+@brief Variadic macro wrapper for log_message_internal to automatically include file, function, and line information.
 @params level The logging level.
-@params message The message to log.
+@params fmt The format string for the log message.
+@params ... The variadic arguments to format the message.
 */
-#define log_message(level, message) log_message_internal(level, message, __FILE__, __FUNCTION__, __LINE__)
+#define log_message(level, fmt, ...) do {                                          \
+    char __log_buffer[1024];                                                       \
+    /* Format the message using snprintf with provided arguments */                \
+    snprintf(__log_buffer, sizeof(__log_buffer), fmt, ##__VA_ARGS__);                \
+    log_message_internal(level, __log_buffer, __FILE__, __FUNCTION__, __LINE__);     \
+} while(0)
 
 /*
 @brief Macro for logging debug messages.
-@params message The message to log.
+@params fmt The format string for the debug message.
+@params ... The variadic arguments to format the message.
 */
-#define log_debug(message)   log_message("DEBUG", message)
+#define log_debug(fmt, ...)   log_message("DEBUG", fmt, ##__VA_ARGS__)
 
 /*
 @brief Macro for logging info messages.
-@params message The message to log.
+@params fmt The format string for the info message.
+@params ... The variadic arguments to format the message.
 */
-#define log_info(message)    log_message("INFO", message)
+#define log_info(fmt, ...)    log_message("INFO", fmt, ##__VA_ARGS__)
 
 /*
 @brief Macro for logging warning messages.
-@params message The message to log.
+@params fmt The format string for the warning message.
+@params ... The variadic arguments to format the message.
 */
-#define log_warning(message) log_message("WARNING", message)
+#define log_warning(fmt, ...) log_message("WARNING", fmt, ##__VA_ARGS__)
 
 /*
 @brief Macro for logging error messages.
-@params message The message to log.
+@params fmt The format string for the error message.
+@params ... The variadic arguments to format the message.
 */
-#define log_error(message)   log_message("ERROR", message)
-
+#define log_error(fmt, ...)   log_message("ERROR", fmt, ##__VA_ARGS__)
 
 /*
-@brief Macro to ensure a condition is true.
-@details Checks the given condition, and if it evaluates to false, logs the provided message
-	 using the specified logging level.
-	 You may extend this macro to take additional actions (like exiting the program) if needed.
+@brief Variadic macro to ensure a condition is true.
+@details Checks the given condition, and if it evaluates to false, logs the provided formatted message
+         using the specified logging level.
+         You may extend this macro to take additional actions (like exiting the program) if needed.
 @params condition The condition to evaluate.
-@params message The message to log if the condition is false.
 @params level The logging level to use when logging the message.
+@params fmt The format string for the log message.
+@params ... The variadic arguments to format the message.
 */
-#define ensure(condition, level, message)	\
-do {						\
-	if (!(condition)) {			\
-		log_message(level, message);	\
-	}					\
+#define ensure(condition, level, fmt, ...) do {      \
+    if (!(condition)) {                                \
+        log_message(level, fmt, ##__VA_ARGS__);        \
+    }                                                  \
 } while(0)
 
 /*
 @brief Macro variant to ensure a condition is true.
-@details If the condition is false, it logs the provided message with a WARNING level.
+@details If the condition is false, it logs the provided formatted message with a WARNING level.
 @params condition The condition to evaluate.
-@params message The message to log if the condition is false.
+@params fmt The format string for the log message.
+@params ... The variadic arguments to format the message.
 */
-#define ensure_warning(condition, message) ensure(condition, "WARNING", message)
+#define ensure_warning(condition, fmt, ...) ensure(condition, "WARNING", fmt, ##__VA_ARGS__)
 
 /*
 @brief Macro variant to ensure a condition is true.
-@details If the condition is false, it logs the provided message with an ERROR level.
+@details If the condition is false, it logs the provided formatted message with an ERROR level.
 @params condition The condition to evaluate.
-@params message The message to log if the condition is false.
+@params fmt The format string for the log message.
+@params ... The variadic arguments to format the message.
 */
-#define ensure_error(condition, message) ensure(condition, "ERROR", message)
+#define ensure_error(condition, fmt, ...) ensure(condition, "ERROR", fmt, ##__VA_ARGS__)

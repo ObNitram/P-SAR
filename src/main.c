@@ -1,15 +1,12 @@
-#include <signal.h>
-
-
 #include "utils/logger.h"
 
 #define DEBUG_BREAK() __asm__ volatile("int $3")
 
 int main(int argc, char **argv)
 {
-	// Init the logger systeme
-	g_log_stream = stdout;
-	ensure_error(0, "message");
+	init_logger(stderr);
 
-	printf("Usage: %s message\n", argv[0]);
+	log_info("The answer is %d", 42);
+
+	ensure_error(1>2, "This is an %s", "error");
 }
