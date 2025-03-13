@@ -1,7 +1,5 @@
 #include "utils/logger.h"
 
-#define DEBUG_BREAK() __asm__ volatile("int $3")
-
 int main(int argc, char **argv)
 {
 	init_logger(stderr);
