@@ -3,6 +3,7 @@
 #include <time.h>
 #include <unistd.h>
 
+
 /// @brief Global log stream variable.
 /// @details This variable defines the output stream for the logging messages.
 /// It can be set to any valid FILE pointer (e.g., stdout, stderr, or a file opened with fopen).
@@ -92,11 +93,14 @@ void log_message_internal(char *level, char *message, const char *file,
 /// @param level The logging level to use when logging the message.
 /// @param fmt The format string for the log message.
 /// @param ... The variadic arguments to format the message.
-#define ensure(condition, level, fmt, ...) do {      \
-    if (!(condition)) {                                \
-        log_message(level, fmt, ##__VA_ARGS__);        \
-    }                                                  \
-} while(0)
+#define ensure(condition, level, fmt, ...)                             \
+(__extension__ ({                                                   \
+	int __result = (condition);  /* Evaluate condition once */     \
+	if (!__result) {                                                 \
+		log_message(level, fmt, ##__VA_ARGS__);  /* Log if false */   \
+	}                                                                \
+	!__result;  /* Return the result of the condition */             \
+}))
 
 /// @brief Macro variant to ensure a condition is true.
 /// @details If the condition is false, it logs the provided formatted message with a WARNING level.
