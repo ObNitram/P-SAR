@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include "../network/network.h"
+#include "../utils/list.h"
 
 // Glossaire:
 //     data owner : la node qui à la dernière version d'une page
@@ -43,6 +44,7 @@ struct page {
     char have_token; // boolean
     enum lock_status my_lock;
     char in_chainon; //boolean
+    struct list_head list; // use this struct as a linked list
 };
 
 /// TABLEAU a taille fix ou pas ? Difficulter pour l'agrandissement dynamique de la ram
