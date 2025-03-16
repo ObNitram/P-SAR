@@ -2,7 +2,7 @@
 
 struct page page_info;
 
-static void init_page(struct page *p, ssize_t id)
+void init_page(struct page *p, ssize_t id)
 {
 	p->data_owner = NULL; 
 	p->have_token = 1;
