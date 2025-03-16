@@ -20,18 +20,18 @@ void *Init_DSM(size_t size, int port)
 
 	// init internal data
 	page_info.id = -1;
-	INIT_LIST_HEAD(&page_info.list);
+	//INIT_LIST_HEAD(&page_info.list);
 	for (int i = 0; i<nb_pages; i++) {
 		struct page *p = malloc(sizeof(struct page));
 		if (!p) {
 			perror("strcut page init failed");
 			goto error_exit;
 		}
-		init_page(p, dsm + i*PAGE_SIZE);
-		list_add(&p->list, &page_info.list);
+		init_page(p, (ssize_t) (dsm + i*PAGE_SIZE));
+		//list_add(&p->list, &page_info.list);
 	}
 	nodes.host = NULL;
-	INIT_LIST_HEAD(&nodes.list);
+	//INIT_LIST_HEAD(&nodes.list);
 
 	start_server();
 

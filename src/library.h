@@ -5,7 +5,6 @@
 #include <sys/mman.h>
 #include "core/sigaction_handler.h"
 #include "core/core.h"
-#include "core/sigaction_handler.h"
 
 extern void *dsm;
 extern unsigned int nb_pages;
