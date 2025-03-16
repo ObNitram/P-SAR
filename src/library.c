@@ -3,14 +3,45 @@
 #include <assert.h>
 #include <stdio.h>
 
+void *dsm;
+unsigned int nb_pages;
 
 void *Init_DSM(size_t size, int port)
 {
-	// init memory
+	// memory init
+	nb_pages = (size + PAGE_SIZE - 1)/ PAGE_SIZE;
+	dsm = mmap(0, nb_pages * PAGE_SIZE, 
+		PROT_READ | PROT_WRITE,
+		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (dsm == MAP_FAILED) {
+		perror("map allocation failed");
+		return NULL;
+	}
+
 	// init internal data
-	// init sigaction
-	// TODO: InitNode
-	return NULL;
+	page_info.id = -1;
+	INIT_LIST_HEAD(&page_info.list);
+	for (int i = 0; i<nb_pages; i++) {
+		struct page *p = malloc(sizeof(struct page));
+		if (!p) {
+			perror("strcut page init failed");
+			goto error_exit;
+		}
+		init_page(p, dsm + i*PAGE_SIZE);
+		list_add(&p->list, &page_info.list);
+	}
+	nodes.host = NULL;
+	INIT_LIST_HEAD(&nodes.list);
+
+	start_server();
+
+	set_sigaction_handler();
+	return dsm;
+
+	error_exit :
+		munmap(dsm, nb_pages * PAGE_SIZE);
+		free_page_info();
+		return NULL;
 }
 
 void *join_DSM(char *host, int port)

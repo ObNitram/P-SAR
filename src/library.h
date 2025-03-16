@@ -1,5 +1,14 @@
 #pragma once
 #include <stddef.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include "core/sigaction_handler.h"
+#include "core/core.h"
+#include "core/sigaction_handler.h"
+
+extern void *dsm;
+extern unsigned int nb_pages;
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///
@@ -7,7 +16,7 @@
 ///
 /// @param size The size (in bytes) of the shared memory to initialize.
 /// @param port The port you use to communicate
-/// @return A pointer to the allocated shared memory region.
+/// @return A pointer to the allocated shared memory region on success, NULL otherwise.
 void *Init_DSM(size_t size, int port);
 
 

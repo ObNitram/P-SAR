@@ -1,5 +1,17 @@
 #include "core.h"
 
+struct page page_info;
+
+static void init_page(struct page *p, ssize_t id)
+{
+	p->data_owner = NULL; 
+	p->have_token = 1;
+	p->id = id;
+	p->id_lock_given = NULL;
+	p->in_chainon = 1;
+	p->my_lock = NONE;
+	p->read_requests_status = PENDING;
+}
 
 void ask_lock(struct page *page, int lock_type) {
     // if (page->owner == id) {

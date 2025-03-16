@@ -27,6 +27,13 @@ struct node_id {
     struct list_head list; ///< use this struct as a linked list
 };
 
+/// @brief A global variable representing the linked list of the intern state of 
+/// the nodes. The first element is a ghost node allocated in the stack
+/// with host = NULL.
+extern struct node_id nodes;
+extern unsigned int nb_nodes;
+
+void free_nodes();
 
 void start_server();
 
