@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include "network/network.h"
 #include "core/sigaction_handler.h"
 #include "core/core.h"
 

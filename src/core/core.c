@@ -13,6 +13,10 @@ void init_page(struct page *p, ssize_t id)
 	p->read_requests_status = PENDING;
 }
 
+void free_page_info() {
+    
+}
+
 void ask_lock(struct page *page, int lock_type) {
     // if (page->owner == id) {
     //     // TODO
