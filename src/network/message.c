@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct nodes_id nodes;
+struct node_id nodes;
 
 void free_message(struct message *message)
 {
