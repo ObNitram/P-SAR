@@ -1,7 +1,51 @@
 #include "core.h"
+#include "../utils/message.h"
+#include "network/network.h"
+#include "utils/list.h"
+#include <stdlib.h>
 
+// enum for local status of lock
+enum lock_status {
+    READING = READ,
+    WRITING = WRITE,
+    NONE,
+};
 
-void ask_lock(struct page *page, int lock_type) {
+struct read_request {
+    struct node_id node;
+    struct list_head list;
+};
+
+struct core_info {
+    enum lock_status mode;
+    struct node_id write_request;
+    struct read_request read_request;
+    struct node_id have_token;
+};
+
+static struct core_info *core_info;
+static size_t core_size;
+
+struct slsm_message {
+    enum message_type type;
+    struct node_id sender; // the sender of the message
+    enum lock_type mode;
+    struct node_id test; // the sender of the request
+};
+
+void init_core(size_t nbpages){
+    //create structure sauf si dans page_info
+    core_info = malloc(sizeof(struct core_info) * nbpages);
+    core_size = nbpages;
+    //init handler
+}
+
+void clean_core(){
+    free(core_info);
+    core_info = NULL;
+}
+
+void ask_lock(size_t page_id, enum lock_type lock_type) {
     // if (page->owner == id) {
     //     // TODO
     // } else {
@@ -15,9 +59,31 @@ void ask_lock(struct page *page, int lock_type) {
     // if (lock_type == WRITE) {
     //     page->have_token = true;
     // }
+
+    struct core_info working_page = core_info[page_id];
+    working_page.mode = (enum lock_status)lock_type;
+
+    struct slsm_message request;
+    struct slsm_message *response;
+    request.test = working_page.have_token;
+    request.mode = lock_type;
+
+    send(ASK_LOCK, &working_page.have_token, &request, sizeof(struct slsm_message));
+    response = wait(GET_LOCK, NULL);
+
+    switch (working_page.mode) {
+    case WRITE:
+        working_page.have_token = 
+        break;
+    case READ:
+        break;
+    default:
+        
+        break;
+    }
 }
 
-void unlock(struct page *page) {
+void unlock(size_t page_id) {
     // assert(page->my_lock != NONE);
     // if (page->my_lock == READ) {  // we readed
     //     assert(read_request.empty()); 
@@ -34,6 +100,20 @@ void unlock(struct page *page) {
     // page->my_lock = NONE;
 }
 
+void handle_ASK_LOCK(struct message *message){
+    struct slsm_message request = *((struct slsm_message*) message);
+    assert(request.type == ASK_LOCK);
+}
+
+void handle_GET_LOCK(struct message *message){
+    struct slsm_message request = *((struct slsm_message*) message);
+    assert(request.type == GET_LOCK);
+}
+
+void handle_UNLOCK(struct message *message){
+    struct slsm_message request = *((struct slsm_message*) message);
+    assert(request.type == UNLOCK);
+}
 
 void handle_lock_read(struct page * page, struct node_id id_requester) {
     // if (page->in_chainon == false) {

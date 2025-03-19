@@ -18,46 +18,34 @@
 // TODO: Si deux invalidation sont envoyé l'une après l'autre et une node les reçois dans le mauvais ordre, elle retient le mauvais data owner.
 // Solution: rajouter un int dans le Token, l'incrementer quand on le reçoit et envoyer cette int dans une invalidating. Une node ensuite garde seulement le plus grand des deux
 
+//Solution: pas grave le mauvais data owner transmet sa requete au data owner qu'elle a enregistrer et une fois que sa requete a été transmis le veritable data owner peut lui envoyer son id pour corriger
 
 // chaque node doit etre a tout moment capable de reorienter les requettes quelle reçoie ou de les traiter
-
-enum lock_status {
-    NONE,
-    READ,
-    WRITE
-};
 
 enum requests_status {
     PENDING,
     RUNNING
 };
 
-
-struct page {
-    size_t id;
-    struct node_id data_owner; // Update lors du changement downer par un broadcast
-    struct node_id id_lock_given;
-    // read_requests: Queue<Request>;
-    enum requests_status read_requests_status;
-    // write_requests: Request?;
-    char have_token; // boolean
-    enum lock_status my_lock;
-    char in_chainon; //boolean
+enum lock_type {
+    READ,
+    WRITE
 };
 
-/// TABLEAU a taille fix ou pas ? Difficulter pour l'agrandissement dynamique de la ram
+struct page {
+    struct node_id data_owner; // Update lors du changement downer par un broadcast
+    size_t id;
+};
+
+/// TABLEAU a taille fix ou pas ? Difficulter pour l'agrandissement dynamique de la ram => pas demander dans le projet pour l'instant
 /// mais es ce vraiment un cas d'utilisation ???
 struct page *page_info;
 
 
-void ask_lock(struct page *page, int lock_type);
+void ask_lock(size_t page_id, enum lock_type lock_type);
 
-void unlock(struct page *page);
+void unlock(size_t page_id);
 
-void handle_lock_read(struct page *page, struct node_id id_requester);
+void init_core(size_t nb_pages);
 
-void handle_unlock_read(struct page * page, int id_requester);
-
-void handle_unlock_write(struct page * page, int id_requester);
-
-void handle_lock_write(struct page * page, int id_requester);
+void clean_core();
