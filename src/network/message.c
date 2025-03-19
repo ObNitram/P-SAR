@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct nodes_id nodes;
+
 void free_message(struct message *message)
 {
 	if (message != NULL) {

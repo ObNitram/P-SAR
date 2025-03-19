@@ -19,21 +19,14 @@ void *Init_DSM(size_t size, int port)
 	}
 
 	// init internal data
-	page_info.id = -1;
-	INIT_LIST_HEAD(&page_info.list);
-	for (int i = 0; i<nb_pages; i++) {
-		struct page *p = malloc(sizeof(struct page));
-		if (!p) {
-			perror("strcut page init failed");
-			goto error_exit;
-		}
-		init_page(p, (ssize_t) (dsm + i*PAGE_SIZE));
-		list_add(&p->list, &page_info.list);
-	}
-	nodes.host = NULL;
-	INIT_LIST_HEAD(&nodes.list);
+	page_info = malloc(nb_pages * sizeof(struct page));
+	if (!page_info) goto error_exit;
+	for (int i = 0; i<nb_pages; i++) init_page(page_info + i);
+	
+	nodes.port = -1;
+	INIT_LIST_HEAD(&nodes.nlist);
 
-	start_server();
+	start_server(port);
 
 	set_sigaction_handler();
 	return dsm;
@@ -41,12 +34,11 @@ void *Init_DSM(size_t size, int port)
 	error_exit :
 		munmap(dsm, nb_pages * PAGE_SIZE);
 		free_page_info();
-		return NULL;
+	 	return NULL;
 }
 
 void *join_DSM(char *host, int connect_port, int server_port)
 {
-	// TODO: AddNode
 	return NULL;
 }
 

@@ -6,6 +6,7 @@
 #include "network/network.h"
 #include "core/sigaction_handler.h"
 #include "core/core.h"
+#include "network/message.h"
 
 extern void *dsm;
 extern unsigned int nb_pages;

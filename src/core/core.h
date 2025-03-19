@@ -1,9 +1,9 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include "../network/network.h"
-#include "../utils/list.h"
 
 #define PAGE_SIZE 4096
 
@@ -38,7 +38,6 @@ enum requests_status {
 
 
 struct page {
-    ssize_t id;
     struct node_id *data_owner; // Update lors du changement downer par un broadcast NULL if we own it
     struct node_id *id_lock_given;// NULL if given to none
     // read_requests: Queue<Request>;
@@ -47,15 +46,14 @@ struct page {
     char have_token; // boolean
     enum lock_status my_lock;
     char in_chainon; //boolean
-    struct list_head list; // use this struct as a linked list
 };
 
 /// @brief A global variable representing the linked list of the intern state of 
 /// the allocated memory. The first element is a ghost page allocated in the stack
 /// with id = -1.
-extern struct page page_info;
+extern struct page *page_info;
 
-void init_page(struct page *p, ssize_t id);
+void init_page(struct page *p);
 
 void free_page_info();
 

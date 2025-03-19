@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <netinet/in.h>
+#include "../utils/list.h"
 
 #define MAX_MESSAGES 100
 
@@ -10,7 +11,10 @@
 struct node_id {
 	char host[INET6_ADDRSTRLEN]; ///< Hostname or IP address of the node.
 	int port; ///< Port number of the node.
+	struct list_head nlist; ///< The linked list of the nodes
 };
+
+extern struct node_id nodes;
 
 /// @brief Structure representing a message.
 /// @details Contains the type of the message and the identifier of the sender.
