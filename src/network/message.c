@@ -4,6 +4,7 @@
 #include <string.h>
 
 struct node_id nodes;
+unsigned int nb_nodees;
 
 void free_message(struct message *message)
 {

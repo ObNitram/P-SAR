@@ -11,16 +11,37 @@
 struct node_id {
 	char host[INET6_ADDRSTRLEN]; ///< Hostname or IP address of the node.
 	int port; ///< Port number of the node.
-	struct list_head nlist; ///< The linked list of the nodes
 };
 
-extern struct node_id nodes;
+struct node_list {
+	struct node_id node;
+	struct list_head nlist;
+};
+
+extern struct node_list node_list;
+extern unsigned int nb_nodees;
+
+/// @brief Represents the type of message.
+/// @details This enum defines the available message types.
+enum message_type {
+    ASK_LOCK,
+    GET_LOCK,
+    UNLOCK,
+	JOIN_DSM, 
+	DSM_INFO
+};
 
 /// @brief Structure representing a message.
 /// @details Contains the type of the message and the identifier of the sender.
 struct message {
 	size_t message_type; ///< The type of the message.
 	struct node_id sender; ///< The sender of the message.
+};
+
+struct DSM_INFO_message {
+	struct message header;
+	unsigned int nb_pages;
+	unsigned int nb_nodes;
 };
 
 /// @brief Frees a dynamically allocated message.

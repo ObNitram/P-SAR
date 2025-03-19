@@ -16,7 +16,7 @@ void free_page_info() {
     free(page_info);
 }
 
-void ask_lock(struct page *page, int lock_type) {
+void ask_lock(size_t page_id, int lock_type) {
     // if (page->owner == id) {
     //     // TODO
     // } else {
@@ -32,7 +32,7 @@ void ask_lock(struct page *page, int lock_type) {
     // }
 }
 
-void unlock(struct page *page) {
+void unlock(size_t page_id) {
     // assert(page->my_lock != NONE);
     // if (page->my_lock == READ) {  // we readed
     //     assert(read_request.empty()); 

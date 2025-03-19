@@ -57,9 +57,9 @@ void init_page(struct page *p);
 
 void free_page_info();
 
-void ask_lock(struct page *page, int lock_type);
+void ask_lock(size_t page_id, int lock_type);
 
-void unlock(struct page *page);
+void unlock(size_t page_id);
 
 void handle_lock_read(struct page *page, struct node_id id_requester);
 
