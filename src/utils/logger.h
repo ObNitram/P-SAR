@@ -12,15 +12,13 @@ FILE *g_log_stream;
 
 /// @brief Macro to initialize the logger and log the initialization and output stream definition.
 #define init_logger(stream) do {                                                       \
-    g_log_stream = stream;                                                               \
-    \
-    log_info("Logger initialized.");                                                     \
+    g_log_stream = stream;			                                            \
     if ((stream) == stdout) {                                                            \
-        log_info("Output stream defined on: stdout.");                                   \
+        log_info("Logger initialized on stdout.");                                   \
     } else if ((stream) == stderr) {                                                     \
-        log_info("Output stream defined on: stderr.");                                   \
+        log_info("Logger initialized on stderr.");                                   \
     } else {                                                                             \
-        log_info("Output stream defined on: %p", (void*)(stream));                        \
+        log_info("Logger initialized on %p", (void*)(stream));                        \
     }                                                                                    \
 } while (0)
 

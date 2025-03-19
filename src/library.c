@@ -13,7 +13,7 @@ void *Init_DSM(size_t size, int port)
 	return NULL;
 }
 
-void *join_DSM(char *host, int port)
+void *join_DSM(char *host, int connect_port, int server_port)
 {
 	// TODO: AddNode
 	return NULL;

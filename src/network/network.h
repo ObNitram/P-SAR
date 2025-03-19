@@ -1,53 +1,47 @@
 #pragma once
 
 #include <stddef.h>
+#include "message.h"
 
-#define MAX_MESSAGES 100
+/// @brief Starts the server on the specified port.
+/// @details Initializes the server and begins listening for incoming connections on the given port.
+///          This function should be called before attempting to send or receive messages.
+/// @param port The port number on which the server will listen.
+void start_server(int port);
 
-/// @brief Structure representing a message.
-/// @details Contains the type, size, and data of a message.
-struct message {
-	size_t message_type; ///< The type of the message.
-	size_t message_size; ///< The size of the message data in bytes.
-	void *message_data; ///< Pointer to the message data.
-};
-
-void free_message(struct message *message);
-
-struct message *copy_message(const struct message *message);
-
-
-/// @brief Structure representing a node identifier.
-/// @details Contains the host and port information for a node.
-struct node_id {
-	char *host; ///< Hostname or IP address of the node.
-	size_t port; ///< Port number of the node.
-};
-
-
-void start_server();
-
+/// @brief Stops the running server.
+/// @details Gracefully stops the server by closing all connections and terminating the server thread.
+///          After calling this function, the server will no longer accept new connections.
 void stop_server();
 
+/// @brief Retrieves the port number on which the server is running.
+/// @details Returns the current server port number that was set during the call to start_server.
+/// @return The port number on which the server is listening, or -1 if the server is not running.
+int get_server_port();
 
-/// @brief Sends a message to a destination node.
-/// @details This function sends a message of a given type to the specified destination.
-/// @param message_type The type of the message to send.
+/// @brief Retrieves the IP address of the server.
+/// @details Returns a string containing the IP address of the server. The returned string should be
+///          freed by the caller when it is no longer needed.
+/// @return A pointer to a dynamically allocated string containing the server IP address, or NULL on error.
+char *get_server_ip();
+
+/// @brief Sends a message to a specified destination node.
+/// @details Sends the provided message to the destination node identified by the node_id structure.
+///          This function sends first the size of the message followed by the actual message data.
 /// @param dest Pointer to the destination node identifier.
-/// @param data Pointer to the data to be sent.
-/// @param datasize Size of the data in bytes.
-void send_message(size_t message_type,
-                  const struct node_id *dest,
-                  const void *data,
-                  size_t datasize);
-
+/// @param message Pointer to the message to be sent.
+/// @param message_size Size of the message in bytes.
+void send_message(const struct node_id *dest,
+                  const struct message *message,
+                  size_t message_size);
 
 /// @brief Waits for a message of a specific type.
 /// @details This function blocks until a message of the specified type is received.
 ///          If the sender parameter is NULL, it waits for a message from any sender.
 /// @param message_type The type of message to wait for.
 /// @param sender Pointer to the node identifier of the expected sender, or NULL to accept any sender.
-/// @return A struct message containing the received message details.
+/// @return A pointer to a dynamically allocated struct message containing the received message details.
+///         The caller is responsible for freeing the memory.
 struct message *wait_message(size_t message_type, struct node_id *sender);
 
 /// @brief Adds a handler for messages of a specific type.
