@@ -1,7 +1,11 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdlib.h>
+#include <sys/types.h>
 #include "../network/network.h"
+
+#define PAGE_SIZE 4096
 
 // Glossaire:
 //     data owner : la node qui à la dernière version d'une page
@@ -33,8 +37,14 @@ enum lock_type {
 };
 
 struct page {
-    struct node_id data_owner; // Update lors du changement downer par un broadcast
-    size_t id;
+    struct node_id *data_owner; // Update lors du changement downer par un broadcast NULL if we own it
+    struct node_id *id_lock_given;// NULL if given to none
+    // read_requests: Queue<Request>;
+    enum requests_status read_requests_status;
+    // write_requests: Request?;
+    char have_token; // boolean
+    // enum lock_status my_lock;
+    char in_chainon; //boolean
 };
 
 /// TABLEAU a taille fix ou pas ? Difficulter pour l'agrandissement dynamique de la ram => pas demander dans le projet pour l'instant

@@ -1,5 +1,19 @@
 #pragma once
 #include <stddef.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <string.h>
+#include "network/network.h"
+#include "core/sigaction_handler.h"
+#include "core/core.h"
+#include "network/message.h"
+
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
+
+extern void *dsm;
+extern unsigned int nb_pages;
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///
@@ -7,7 +21,7 @@
 ///
 /// @param size The size (in bytes) of the shared memory to initialize.
 /// @param port The port you use to communicate
-/// @return A pointer to the allocated shared memory region.
+/// @return A pointer to the allocated shared memory region on success, NULL otherwise.
 void *Init_DSM(size_t size, int port);
 
 
@@ -20,7 +34,7 @@ void *Init_DSM(size_t size, int port);
 /// @param connect_port The port of the existing node to connect to.
 /// @param server_port The port you listen to add a new node
 /// @return A pointer to the shared memory region.
-void *join_DSM(char *host, int connect_port, int server_port);
+void *join_DSM(const char *host, int connect_port, int server_port);
 
 
 /// @brief Requests a read lock for the specified memory region.
