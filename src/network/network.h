@@ -32,7 +32,7 @@ char *get_server_ip();
 /// @param message Pointer to the message to be sent.
 /// @param message_size Size of the message in bytes.
 void send_message(const struct node_id *dest,
-                  const struct message *message,
+                  struct message *message,
                   size_t message_size);
 
 /// @brief Waits for a message of a specific type.

@@ -167,7 +167,7 @@ void server_thread()
 	}
 }
 
-void start_server(int port)
+void start_server(const int port)
 {
 	log_info("Starting server on port %i", port);
 	server_port = port;
@@ -236,7 +236,7 @@ char * get_server_ip()
 
 
 void send_message(const struct node_id *dest,
-                  const struct message *message,
+                  struct message *message,
                   const size_t message_size)
 {
 	if (ensure_error(dest != NULL, "Destination node required")) {
@@ -249,6 +249,11 @@ void send_message(const struct node_id *dest,
 		return;
 	}
 
+
+
+	// Complete the message with the sender's information
+	message->sender.port = get_server_port();
+
 	struct addrinfo hints, *servinfo, *p;
 	int rv;
 
@@ -257,6 +262,7 @@ void send_message(const struct node_id *dest,
 
 	// Convert port number to string
 	snprintf(port_str, sizeof(port_str), "%i", dest->port);
+
 
 	// Set up hints for getaddrinfo
 	memset(&hints, 0, sizeof(hints));
