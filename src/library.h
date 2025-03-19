@@ -26,9 +26,10 @@ void *Init_DSM(size_t size, int port);
 /// the node at the specified host address and returns the address of the shared memory region.
 ///
 /// @param host The hostname or IP address of the existing node to connect to.
-/// @param port The port you use to communicate
+/// @param connect_port The port of the existing node to connect to.
+/// @param server_port The port you listen to add a new node
 /// @return A pointer to the shared memory region.
-void *join_DSM(char *host, int port);
+void *join_DSM(char *host, int connect_port, int server_port);
 
 
 /// @brief Requests a read lock for the specified memory region.
