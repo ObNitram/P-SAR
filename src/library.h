@@ -8,6 +8,7 @@
 #include "core/sigaction_handler.h"
 #include "core/core.h"
 #include "network/message.h"
+#include "utils/utils.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
