@@ -5,6 +5,8 @@
 
 void *dsm;
 unsigned int nb_pages;
+struct node_list node_list;
+unsigned int nb_nodees;
 
 static void set_all_handlers(void) {
 	set_sigaction_handler();

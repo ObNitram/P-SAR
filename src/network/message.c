@@ -3,9 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct node_list node_list;
-unsigned int nb_nodees;
-
 void free_message(struct message *message)
 {
 	if (message != NULL) {
