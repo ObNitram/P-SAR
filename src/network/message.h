@@ -13,24 +13,6 @@ struct node_id {
 	int port; ///< Port number of the node.
 };
 
-struct node_list {
-	struct node_id node;
-	struct list_head nlist;
-};
-
-extern struct node_list node_list;
-extern unsigned int nb_nodees;
-
-/// @brief Represents the type of message.
-/// @details This enum defines the available message types.
-enum message_type {
-    ASK_LOCK,
-    GET_LOCK,
-    UNLOCK,
-	JOIN_DSM, 
-	DSM_INFO
-};
-
 /// @brief Structure representing a message.
 /// @details Contains the type of the message and the identifier of the sender.
 struct message {
