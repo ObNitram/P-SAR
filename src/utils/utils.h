@@ -22,7 +22,7 @@ enum message_type {
     GET_LOCK,
     UNLOCK,
     JOIN_DSM, 
-    DSM_INFO
+    INFO_DSM
 };
 
 int node_equal(struct node_id *node1, struct node_id *node2){

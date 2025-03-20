@@ -8,11 +8,6 @@ unsigned int nb_pages;
 struct node_list node_list;
 unsigned int nb_nodees;
 
-static void set_all_handlers(void) {
-	set_sigaction_handler();
-	// maybe hadnlers for algo in core
-}
-
 static void init_nodes(void) {
 	INIT_LIST_HEAD(&node_list.nlist);
 	node_list.node.port = -1;
@@ -35,32 +30,53 @@ static void free_nodes(void) {
 }
 
 static void JOIN_DSM_handler(struct message *message) {
-	size_t dsminf_sz = sizeof(struct DSM_INFO_message);
-	size_t page_sz = sizeof(struct page);
+	size_t ms_sz = sizeof(struct message);
 	size_t nd_sz = sizeof(struct node_id);
-	size_t sz = dsminf_sz + nb_pages * page_sz + 
-				nb_nodees * nd_sz;
-
-	struct DSM_INFO_message *dsm_info = malloc(sz);
-	dsm_info->header.message_type = DSM_INFO;
-	dsm_info->nb_nodes = nb_nodees;
-	dsm_info->nb_pages = nb_pages;
+	size_t ud_sz = sizeof(unsigned int);
+	size_t sz_sz = sizeof(size_t);
+	size_t cr_sz;
+	void *core_info = get_core_info(&cr_sz);
 	
-	void *addr = dsm_info + dsminf_sz;
-	memcpy(addr, page_info, page_sz * nb_pages);
-	addr += page_sz * nb_pages;
+	// total size of the mess
+	size_t sz = ms_sz + ud_sz + nb_nodees * nd_sz +
+				sz_sz + cr_sz;
 
+	struct message *dsm_info = malloc(sz);
+	dsm_info->message_type = INFO_DSM;
+	void *addr = dsm_info + ms_sz;
 
+	// copy of nb_nodees
+	memcpy(addr, &nb_nodees, ud_sz);
+	addr += ud_sz;
+
+	// copy of all node_id
 	struct node_list *nlist = &node_list;
+	unsigned int node_counter = 0;
 	list_for_each_entry_continue(nlist, &node_list.nlist, nlist) {
+		node_counter++;
 		memcpy(addr, &nlist->node, nd_sz);
 		addr += nd_sz;
 	}
+	assert(node_counter == nb_nodees);
 
-	send_message(&message->sender, (struct message *)dsm_info, sz);
-	free(dsm_info);
+	// copy of size of the core_info
+	memcpy(addr, &cr_sz, sz_sz);
+	addr += sz_sz;
+
+	// copy the core info
+	memcpy(addr, core_info, cr_sz);
+	addr += cr_sz;
+
+	send_message(&message->sender, dsm_info, sz);
+	add_to_nodes(message->sender.host, message->sender.port);
+	free_message(dsm_info);
+	free_message(message);
 }
 
+static void set_all_handlers(void) {
+	set_sigaction_handler();
+	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
+}
 
 void *Init_DSM(size_t size, int port)
 {
@@ -98,11 +114,10 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	mess_joining->message_type = JOIN_DSM;
 	send_message(nd, mess_joining, msg_sz);
 	
-	struct DSM_INFO_message *dsm_info = 
-		(struct DSM_INFO_message *)wait_message(DSM_INFO, NULL) ;
+	struct message *dsm_info = wait_message(INFO_DSM, NULL) ;
 	
-	free(mess_joining);
-	free(dsm_info);
+	free_message(mess_joining);
+	free_message(dsm_info);
 
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
 		PROT_READ | PROT_WRITE,
