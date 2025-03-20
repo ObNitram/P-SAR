@@ -53,10 +53,6 @@ struct page {
 /// with id = -1.
 extern struct page *page_info;
 
-void init_page(struct page *p);
-
-void free_page_info();
-
 void ask_lock(size_t page_id, int lock_type);
 
 void unlock(size_t page_id);
@@ -68,3 +64,7 @@ void handle_unlock_read(struct page * page, int id_requester);
 void handle_unlock_write(struct page * page, int id_requester);
 
 void handle_lock_write(struct page * page, int id_requester);
+
+extern void *get_core_info(size_t *sz);
+extern void *init_core_info(int nb_page, void *data);
+extern void clean_core(void);

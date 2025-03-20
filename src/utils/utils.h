@@ -28,7 +28,3 @@ enum message_type {
 int node_equal(struct node_id *node1, struct node_id *node2){
     return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
 }
-
-extern void *get_core_info(size_t *sz);
-extern void *init_core_info(int nb_page, void *data);
-extern void clean_core(void);

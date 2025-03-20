@@ -2,18 +2,14 @@
 
 struct page *page_info;
 
-void init_page(struct page *p)
-{
-	p->data_owner = NULL; 
-	p->have_token = 1;
-	p->id_lock_given = NULL;
-	p->in_chainon = 1;
-	p->my_lock = NONE;
-	p->read_requests_status = PENDING;
+extern void *get_core_info(size_t *sz){
+    return NULL;
 }
-
-void free_page_info() {
-    free(page_info);
+extern void *init_core_info(int nb_page, void *data){
+    return NULL;
+}
+extern void clean_core(void){
+    
 }
 
 void ask_lock(size_t page_id, int lock_type) {
