@@ -20,6 +20,13 @@ struct message {
 	struct node_id sender; ///< The sender of the message.
 };
 
+struct INFO_DSM_message {
+	struct message header;
+	unsigned int nb_pages;
+	unsigned int nb_nodes;
+	size_t core_info_sz;
+};
+
 /// @brief Frees a dynamically allocated message.
 /// @details This function releases the memory allocated for a message, helping to prevent memory leaks.
 ///          The provided pointer must refer to a message that was allocated dynamically.

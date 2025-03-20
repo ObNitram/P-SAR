@@ -30,24 +30,20 @@ static void free_nodes(void) {
 }
 
 static void JOIN_DSM_handler(struct message *message) {
-	size_t ms_sz = sizeof(struct message);
+	size_t ms_sz = sizeof(struct INFO_DSM_message);
 	size_t nd_sz = sizeof(struct node_id);
-	size_t ud_sz = sizeof(unsigned int);
-	size_t sz_sz = sizeof(size_t);
 	size_t cr_sz;
 	void *core_info = get_core_info(&cr_sz);
 	
 	// total size of the mess
-	size_t sz = ms_sz + ud_sz + nb_nodees * nd_sz +
-				sz_sz + cr_sz;
+	size_t sz = ms_sz  + nb_nodees * nd_sz + cr_sz;
 
-	struct message *dsm_info = malloc(sz);
-	dsm_info->message_type = INFO_DSM;
+	struct INFO_DSM_message *dsm_info = malloc(sz);
+	dsm_info->header.message_type = INFO_DSM;
+	dsm_info->nb_pages = nb_pages;
+	dsm_info->nb_nodes = nb_nodees;
+	dsm_info->core_info_sz = cr_sz;
 	void *addr = dsm_info + ms_sz;
-
-	// copy of nb_nodees
-	memcpy(addr, &nb_nodees, ud_sz);
-	addr += ud_sz;
 
 	// copy of all node_id
 	struct node_list *nlist = &node_list;
@@ -59,23 +55,24 @@ static void JOIN_DSM_handler(struct message *message) {
 	}
 	assert(node_counter == nb_nodees);
 
-	// copy of size of the core_info
-	memcpy(addr, &cr_sz, sz_sz);
-	addr += sz_sz;
-
 	// copy the core info
 	memcpy(addr, core_info, cr_sz);
 	addr += cr_sz;
 
-	send_message(&message->sender, dsm_info, sz);
+	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(message->sender.host, message->sender.port);
-	free_message(dsm_info);
+	free_message((struct message *)dsm_info);
 	free_message(message);
+}
+
+static void INFO_DSM_handler(struct message *message) {
+	//TODO
 }
 
 static void set_all_handlers(void) {
 	set_sigaction_handler();
 	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
+	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
 }
 
 void *Init_DSM(size_t size, int port)
