@@ -142,6 +142,7 @@ void *lunch_message(void *)
 TEST(network, wait_for_message)
 {
 	init_logger(stderr);
+	counter++;
 	start_server(5555);
 
 	sleep(1);
