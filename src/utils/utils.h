@@ -5,6 +5,7 @@
 #include <string.h>
 
 const struct node_id EMPTY_NODE = {"", -1};
+struct node_id me;
 
 struct node_list {
 	struct node_id node;

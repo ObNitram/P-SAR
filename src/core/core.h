@@ -26,36 +26,57 @@
 
 // chaque node doit etre a tout moment capable de reorienter les requettes quelle reçoie ou de les traiter
 
-enum requests_status {
-    PENDING,
-    RUNNING
-};
+enum requests_status { PENDING, RUNNING };
 
-enum lock_type {
-    READ,
-    WRITE
-};
+enum lock_type { READ, WRITE };
 
 struct page {
-    struct node_id *data_owner; // Update lors du changement downer par un broadcast NULL if we own it
-    struct node_id *id_lock_given;// NULL if given to none
-    // read_requests: Queue<Request>;
-    enum requests_status read_requests_status;
-    // write_requests: Request?;
-    char have_token; // boolean
-    // enum lock_status my_lock;
-    char in_chainon; //boolean
+	struct node_id *
+		data_owner; // Update lors du changement downer par un broadcast NULL if we own it
+	struct node_id *id_lock_given; // NULL if given to none
+	// read_requests: Queue<Request>;
+	enum requests_status read_requests_status;
+	// write_requests: Request?;
+	char have_token; // boolean
+	// enum lock_status my_lock;
+	char in_chainon; //boolean
 };
 
 /// TABLEAU a taille fix ou pas ? Difficulter pour l'agrandissement dynamique de la ram => pas demander dans le projet pour l'instant
 /// mais es ce vraiment un cas d'utilisation ???
 struct page *page_info;
 
-
+// if (page->owner == id) {
+//     // TODO
+// } else {
+//     send(page->owner, ASK_OWNER, <id_page, my_id, lock_type>);
+//     wait(ACK_LOCK); // on est maintenant dans la file d'attente
+//     // TODO; deal with negative ack
+//     wait(LOCK_GIVEN; any);
+// }
+// page->my_lock = lock_type;
+// page->id_lock_given_from = lock_giver;
+// if (lock_type == WRITE) {
+//     page->have_token = true;
+// }
 void ask_lock(size_t page_id, enum lock_type lock_type);
 
+// assert(page->my_lock != NONE);
+// if (page->my_lock == READ) {  // we readed
+//     assert(read_request.empty());
+//     assert(write_request == NULL);
+// send message back to the guy with the tocken
+//     // if (page->id_given_lock_from == my_id) {
+//     handle
+//     } else {
+//             send(page->given_lock_from, UNLOCK, <page_id, my_id, lock_type>);
+//     }
+// } else {
+//     handle_pending_request(page); // gerer les prochains read et gerer prochain right
+// }
+// page->my_lock = NONE;
 void unlock(size_t page_id);
 
-void init_core(size_t nb_pages);
+void init_core(size_t nb_pages, void *pages_data);
 
-void clean_core();
+void clean_core(void);
