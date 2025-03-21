@@ -1,8 +1,8 @@
 #include "core.h"
 #include "../utils/utils.h"
-#include "network/message.h"
-#include "network/network.h"
-#include "utils/list.h"
+#include "../network/message.h"
+#include "../network/network.h"
+#include "../utils/list.h"
 #include <stdlib.h>
 
 // enum for local status of lock
@@ -66,20 +66,6 @@ static inline void send_slsm_message(enum message_type msgt,
 	};
 	send_message(sender, (struct message *)&request,
 		     sizeof(struct slsm_message));
-}
-
-void init_core(size_t nbpages, void *pages_data)
-{
-	//create structure sauf si dans page_info
-	core_info = malloc(sizeof(struct core_info) * nbpages);
-	core_size = nbpages;
-	//init handler
-}
-
-void clean_core()
-{
-	free(core_info);
-	core_info = NULL;
 }
 
 void ask_lock(size_t page_id, enum lock_type lock_type)
@@ -256,62 +242,41 @@ void handle_UNLOCK(struct message *message)
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info working_page = core_info[request.page];
 
-	// remove reader from list
+	//read_request <- read_request / {j}
 	del_reader(&working_page, &request.initiator);
 
-	//if no reader and a writer => send token to writer
+	//if read_request = {} and write_request != 0 :
 	if (list_empty(&working_page.read_request.nlist) &&
 	    &working_page.write_request != &EMPTY_NODE) {
+		//send(<GET_LOCK,i,WRITE>) to write_request
 		send_slsm_message(GET_LOCK, &working_page.write_request, WRITE,
 				  request.page);
-
+		//have_token <- write_request
 		working_page.have_token = working_page.write_request;
+		//write_request = 0
 		working_page.write_request = EMPTY_NODE;
 	}
 }
 
-
-
-
-
-
-
-
-
-
-
-void handle_lock_read(struct page *page, struct node_id id_requester)
+void init_core(size_t nbpages, void *pages_data)
 {
-	// if (page->in_chainon == false) {
-	//     send(page->data_owner, ASK_LOCK, <id_page, id_requester, READ>);
-	// }
-	// if (page->write_request != NULL) {
-	//     if (page->write_request == me) {
-	//         // Who knows
-	//     }
-	//     send(page_write_request->id, ASK_LOCK, <id_page, id_requester, READ>);
-	//     return;
-	// } else {
-	//     page->read_request.insert(id_requester);
-	//     send(id_requester, ACK_LOCK, <id_page, my_id, READ>);
-	//     if (page->have_token && page->my_lock != WRITE) {
-	//         send(id_requester, GIVEN_LOCK, <id_page, my_id, READ>);
-	//     }
-	// }
+	//create structure sauf si dans page_info
+	core_info = malloc(sizeof(struct core_info) * nbpages);
+	for (int i = 0; i<nbpages; i++) {
+		INIT_LIST_HEAD(&core_info[i].read_request.nlist);
+	}
+	core_size = nbpages;
+	//init handler
+
+	addHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
+	addHandler(UNLOCK, NULL, handle_UNLOCK);
 }
 
-void handle_unlock_read(struct page *page, int id_requester)
+void clean_core()
 {
-	// page->read_request, id_request);
-	// if (page->write_request != NULL && page->read-request.empty()) {
-	//     page->have_token = false;
-	//     send(page->write_request, GIVEN_LOCK, <id_page, my_id, WRITE>);
-	// }
-}
+	free(core_info);
+	core_info = NULL;
 
-void handle_lock_write(struct page *p, int id_requester)
-{
-}
-void handle_unlock_write(struct page *p, int id_requester)
-{
+	// deleteHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
+	// deleteHandler(UNLOCK, NULL, handle_UNLOCK);
 }
