@@ -4,8 +4,14 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include "../network/network.h"
+#include "../utils/utils.h"
+#include "network/message.h"
+#include "utils/list.h"
 
 #define PAGE_SIZE 4096
+
+extern const struct node_id EMPTY_NODE;
+extern struct node_id me;
 
 // Glossaire:
 //     data owner : la node qui à la dernière version d'une page
@@ -44,7 +50,7 @@ struct page {
 
 /// TABLEAU a taille fix ou pas ? Difficulter pour l'agrandissement dynamique de la ram => pas demander dans le projet pour l'instant
 /// mais es ce vraiment un cas d'utilisation ???
-struct page *page_info;
+extern struct page *page_info;
 
 // if (page->owner == id) {
 //     // TODO
@@ -80,3 +86,7 @@ void unlock(size_t page_id);
 void init_core(size_t nb_pages, void *pages_data);
 
 void clean_core(void);
+
+extern void *get_core_info(size_t *sz);
+
+extern int node_equal(struct node_id *node1, struct node_id *node2);

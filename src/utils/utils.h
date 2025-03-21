@@ -4,8 +4,6 @@
 #include "../network/network.h"
 #include <string.h>
 
-const struct node_id EMPTY_NODE = {"", -1};
-struct node_id me;
 
 struct node_list {
 	struct node_id node;
@@ -24,7 +22,3 @@ enum message_type {
     JOIN_DSM, 
     INFO_DSM
 };
-
-int node_equal(struct node_id *node1, struct node_id *node2){
-    return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
-}

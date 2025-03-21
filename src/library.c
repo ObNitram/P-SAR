@@ -91,7 +91,7 @@ void *Init_DSM(size_t size, int port)
 	start_server(port);
 
 	// init internal data
-	init_core_info(nb_pages, NULL);
+	init_core(nb_pages, NULL);
 	init_nodes();
 
 	return dsm;

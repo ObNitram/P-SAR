@@ -1,9 +1,8 @@
 #include "core.h"
-#include "../utils/utils.h"
-#include "network/message.h"
-#include "network/network.h"
-#include "utils/list.h"
 #include <stdlib.h>
+
+const struct node_id EMPTY_NODE = {"", -1};
+struct node_id me;
 
 // enum for local status of lock
 enum lock_status {
@@ -270,15 +269,13 @@ void handle_UNLOCK(struct message *message)
 	}
 }
 
+void *get_core_info(size_t *sz) {
+	return NULL;
+}
 
-
-
-
-
-
-
-
-
+int node_equal(struct node_id *node1, struct node_id *node2){
+    return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
+}
 
 void handle_lock_read(struct page *page, struct node_id id_requester)
 {
