@@ -74,3 +74,4 @@ cmake-build-relwithdebinfo
 
 # Vscode stuff
 .vscode
+.cache
