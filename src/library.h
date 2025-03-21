@@ -15,6 +15,7 @@
 
 extern void *dsm;
 extern unsigned int nb_pages;
+extern const size_t mask;
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///

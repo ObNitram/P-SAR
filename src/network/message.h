@@ -24,7 +24,6 @@ struct INFO_DSM_message {
 	struct message header;
 	unsigned int nb_pages;
 	unsigned int nb_nodes;
-	size_t core_info_sz;
 };
 
 /// @brief Frees a dynamically allocated message.

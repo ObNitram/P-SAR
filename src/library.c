@@ -7,6 +7,7 @@ void *dsm;
 unsigned int nb_pages;
 struct node_list node_list;
 unsigned int nb_nodees;
+const size_t mask = ~(PAGE_SIZE -1);
 
 static void init_nodes(void) {
 	INIT_LIST_HEAD(&node_list.nlist);
@@ -42,7 +43,6 @@ static void JOIN_DSM_handler(struct message *message) {
 	dsm_info->header.message_type = INFO_DSM;
 	dsm_info->nb_pages = nb_pages;
 	dsm_info->nb_nodes = nb_nodees;
-	dsm_info->core_info_sz = cr_sz;
 	void *addr = dsm_info + ms_sz;
 
 	// copy of all node_id
@@ -66,7 +66,21 @@ static void JOIN_DSM_handler(struct message *message) {
 }
 
 static void INFO_DSM_handler(struct message *message) {
-	//TODO
+	struct INFO_DSM_message *idsm = (struct INFO_DSM_message *)
+		message;
+	nb_pages = idsm->nb_pages;
+
+	void *addr = (void *) (idsm + 1);
+
+	struct node_id *n = (struct node_id *)addr;
+	for (unsigned int i = 0; i < idsm->nb_nodes; i++) {
+		add_to_nodes(n->host, n->port);
+		nb_nodees++;
+		n++;
+	}
+
+	init_core(nb_pages, (void *) n);
+	free_message(message);
 }
 
 static void set_all_handlers(void) {
@@ -129,22 +143,39 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	return dsm;
 }
 
+static void get_interval_page(void *adr, size_t s, size_t *start_index, size_t *end_index) {
+	size_t addr = (size_t) adr;
+	size_t dsmm = (size_t) dsmm;
+	*start_index = (size_t) ((addr & mask) - (dsmm & mask));
+	*end_index = (size_t) (((addr + s) & mask) - (dsmm & mask));
+}
+
+static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (*exc_func) (size_t, enum lock_type)) {
+	size_t start_index;
+	size_t end_index;
+	get_interval_page(adr, s, &start_index, &end_index);
+	for (size_t page_id = start_index; page_id <= end_index; page_id++) {
+		exc_func(page_id, lock_type);
+	}
+}
+
 void lock_read(void *adr, size_t s)
 {
-	// TODO: lock_read
+	exclude_others(adr, s, READ, ask_lock);
 }
 
 void unlock_read(void *adr, size_t s)
 {
-	// TODO: unlock_read
+	exclude_others(adr, s, READ, unlock);
+
 }
 
 void lock_write(void *adr, size_t s)
 {
-	// TODO: lock_write
+	exclude_others(adr, s, WRITE, ask_lock);
 }
 
 void unlock_write(void *adr, size_t s)
 {
-	// TODO: unlock_write
+	exclude_others(adr, s, WRITE, unlock);
 }
