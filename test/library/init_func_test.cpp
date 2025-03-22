@@ -36,6 +36,23 @@ struct node_id node_list_init[5] = {
 
 #define SIZE_DSM 40960
 
+int check_node_list_equality(struct node_id nodes[]) {
+    struct node_list *n1 = &node_list;
+    int found = 0;
+    list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
+        assert(n1->node.port != -1);
+        for (int i = 0; i<5; i++) {
+            if (n1->node.port == nodes[i].port) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) return 0;
+        found = 0;
+    }
+    return 1;
+}
+
 // we have two proc
 // one that inits the DSM, the other who will try to join it
 TEST(join_init_dsm, try_to_init_then_join_the_dsm)
@@ -65,21 +82,13 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         log_info("message join recved from %d\n", join_mess->sender.port);
 
         // check that node_list is the same as 
-        struct node_list *n1 = &node_list;
-        int found =0;
-        list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
-            ASSERT_EQ(n1->node.port != -1, 1);
-            for (int i = 0; i<5; i++) {
-                if (n1->node.port == join_mess->sender.port) {
-                    found = 1;
-                    break;
-                }
-            }
-        }
-        
-        ASSERT_EQ(found, 1);
+        int eq = check_node_list_equality(node_list_init);
+        ASSERT_EQ(eq, 1);
+
     }else{
-        sleep(3);
+        // wait until INIT is setup
+        sleep(1);
+
         join_DSM(addr_init, init_port, joiner_port);
 
         ASSERT_EQ(nb_pages, nb_pages_);
@@ -87,24 +96,14 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         int found = 0;
         
         ASSERT_EQ(nb_nodees, nb_nodes_);
-        struct node_list *n1 = &node_list;
+        int eq = 0;
 
-        list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
-            ASSERT_EQ(n1->node.port != -1, 1);
-            for (int i = 0; i<5; i++) {
-                if (n1->node.port == node_list_joiner[i].port) {
-                    found = 1;
-                    break;
-                }
-            }
-            ASSERT_EQ(found, 1);
-            found = 0;
-        }
 
-        for (int i = 0; i<nb_pages; i++) {
-            lock_status s = (core_info + i)->mode;
-            ASSERT_EQ(s, NONE);
-        }
+        eq = check_node_list_equality(node_list_joiner);
+        ASSERT_EQ(eq, 1);
+
+        eq = check_core_info_test();
+        ASSERT_EQ(eq, 1);
     }
 }
 
