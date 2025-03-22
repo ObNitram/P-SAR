@@ -3,6 +3,9 @@
 #include "../network/message.h"
 #include "../network/network.h"
 #include <string.h>
+#include <stdlib.h>
+
+#define PAGE_SIZE 4096
 
 
 struct node_list {
@@ -12,6 +15,8 @@ struct node_list {
 
 extern struct node_list node_list;
 extern unsigned int nb_nodees;
+extern void *dsm;
+extern unsigned int nb_pages;
 
 /// @brief Represents the type of message.
 /// @details This enum defines the available message types.
@@ -22,3 +27,14 @@ enum message_type {
     JOIN_DSM, 
     INFO_DSM
 };
+
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
+
+extern void init_nodes(void);
+
+extern struct node_list *add_to_nodes(const char *host, const int port);
+
+extern size_t get_page_index(void *adr);
+
+extern void free_nodes(void);

@@ -8,8 +8,6 @@
 #include "network/message.h"
 #include "utils/list.h"
 
-#define PAGE_SIZE 4096
-
 extern const struct node_id EMPTY_NODE;
 extern struct node_id me;
 extern struct core_info *core_info;
@@ -93,7 +91,7 @@ extern void ask_lock(size_t page_id, enum lock_type lock_type);
 //     handle_pending_request(page); // gerer les prochains read et gerer prochain right
 // }
 // page->my_lock = NONE;
-extern void unlock(size_t page_id);
+extern void unlock(size_t page_id,  enum lock_type lock_type);
 
 extern void init_core(size_t nb_pages, void *pages_data);
 

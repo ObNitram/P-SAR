@@ -120,7 +120,7 @@ void ask_lock(size_t page_id, enum lock_type lock_type)
 	}
 }
 
-void unlock(size_t page_id)
+void unlock(size_t page_id,  enum lock_type lock_type)
 {
 	struct core_info working_page = core_info[page_id];
 

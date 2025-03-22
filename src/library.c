@@ -1,37 +1,17 @@
 #include "library.h"
-#include <unistd.h>
-#include "utils/logger.h"
 
-void *dsm;
-unsigned int nb_pages;
-struct node_list node_list;
-unsigned int nb_nodees;
-const size_t mask = ~(PAGE_SIZE -1);
-
-static void init_nodes(void) {
-	INIT_LIST_HEAD(&node_list.nlist);
-	node_list.node.port = -1;
-}
-
-struct node_list *add_to_nodes(const char *host, const int port) {
-	struct node_list *ndlst = malloc(sizeof(struct node_list));
-	size_t sz = min(strlen(host),INET6_ADDRSTRLEN) ;
-	memcpy(ndlst->node.host, host, sizeof(char) * sz);
-	ndlst->node.port = port;
-	list_add(&ndlst->nlist, &node_list.nlist);
-	nb_nodees++;
-	return ndlst;
-}
-
-static void free_nodes(void) {
-	struct node_list *n1 = &node_list, *n2;
-	list_for_each_entry_safe_continue(n1, n2, &node_list.nlist, nlist) {
-		free(n1);
+static int init_my_node_id() {
+	char *ip = get_server_ip();
+	if (!ip) {
+		perror("didn't get server ip");
+		return 1;
 	}
+	memcpy(me.host, ip, INET6_ADDRSTRLEN * sizeof(char));
+	me.port = get_server_port();
+	return 0;
 }
 
 static void JOIN_DSM_handler(struct message *message) {
-	log_info("exec of JOIN HANDLER\n");
 	size_t ms_sz = sizeof(struct INFO_DSM_message);
 	size_t nd_sz = sizeof(struct node_id);
 	size_t cr_sz;
@@ -57,7 +37,6 @@ static void JOIN_DSM_handler(struct message *message) {
 	memcpy(addr, core_info, cr_sz);
 	addr += cr_sz;
 
-	// sleep(1);
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(message->sender.host, message->sender.port);
 	free_message((struct message *)dsm_info);
@@ -85,8 +64,22 @@ static void set_all_handlers(void) {
 	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
 }
 
+static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (*exc_func) (size_t, enum lock_type)) {
+	size_t start_index = get_page_index(adr);
+	size_t end_index = get_page_index(adr + s);
+	for (size_t page_id = start_index; page_id <= end_index; page_id++) {
+		exc_func(page_id, lock_type);
+	}
+}
+
 void *Init_DSM(size_t size, int port)
 {
+	start_server(port);
+	set_all_handlers();
+	
+	// init internal data
+	if (init_my_node_id()) return NULL;
+
 	// memory init
 	nb_pages = (size + PAGE_SIZE - 1)/ PAGE_SIZE;
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
@@ -96,11 +89,7 @@ void *Init_DSM(size_t size, int port)
 		perror("map allocation failed");
 		return NULL;
 	}
-	
-	start_server(port);
-	set_all_handlers();
 
-	// init internal data
 	init_core(nb_pages, NULL);
 	init_nodes();
 	return dsm;
@@ -125,6 +114,8 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	free_message(mess_joining);
 	free_message(dsm_info);
 
+	if (init_my_node_id()) return NULL;
+
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
 		PROT_READ | PROT_WRITE,
 		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -136,23 +127,6 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 		return NULL;
 	}
 	return dsm;
-}
-
-size_t get_page_index(void *adr) {
-    size_t addr = (size_t) adr;
-    size_t dsm_addr = (size_t) dsm; // Utiliser la variable globale dsm
-
-    size_t index = (addr - dsm_addr) / PAGE_SIZE;
-
-    return index;
-}
-
-static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (*exc_func) (size_t, enum lock_type)) {
-	size_t start_index = get_page_index(adr);
-	size_t end_index = get_page_index(adr + s);
-	for (size_t page_id = start_index; page_id <= end_index; page_id++) {
-		exc_func(page_id, lock_type);
-	}
 }
 
 void lock_read(void *adr, size_t s)

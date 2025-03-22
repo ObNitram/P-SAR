@@ -3,26 +3,16 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <string.h>
+#include <assert.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "network/network.h"
 #include "core/sigaction_handler.h"
 #include "core/core.h"
 #include "network/message.h"
 #include "utils/utils.h"
-#include <assert.h>
-#include <stdio.h>
 #include "utils/logger.h"
-
-#define min(a, b) ((a) < (b) ? (a) : (b))
-#define max(a, b) ((a) > (b) ? (a) : (b))
-
-extern void *dsm;
-extern unsigned int nb_pages;
-extern const size_t mask;
-
-extern struct node_list *add_to_nodes(const char *host, const int port);
-
-extern size_t get_page_index(void *adr);
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///
