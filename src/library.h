@@ -20,7 +20,9 @@ extern void *dsm;
 extern unsigned int nb_pages;
 extern const size_t mask;
 
-struct node_list *add_to_nodes(const char *host, const int port);
+extern struct node_list *add_to_nodes(const char *host, const int port);
+
+extern size_t get_page_index(void *adr);
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///

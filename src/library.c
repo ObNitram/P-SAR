@@ -139,9 +139,12 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 }
 
 size_t get_page_index(void *adr) {
-	size_t addr = (size_t) adr;
-	size_t dsmm = (size_t) dsmm;
-	return (size_t) ((addr & mask) - (dsmm & mask));
+    size_t addr = (size_t) adr;
+    size_t dsm_addr = (size_t) dsm; // Utiliser la variable globale dsm
+
+    size_t index = (addr - dsm_addr) / PAGE_SIZE;
+
+    return index;
 }
 
 static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (*exc_func) (size_t, enum lock_type)) {

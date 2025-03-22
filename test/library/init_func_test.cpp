@@ -104,6 +104,37 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 
         eq = check_core_info_test();
         ASSERT_EQ(eq, 1);
+
+        exit(0);
     }
 }
 
+
+TEST(addr_to_page, get_page_index) {
+    // memory init
+	nb_pages = (SIZE_DSM + PAGE_SIZE - 1)/ PAGE_SIZE;
+	dsm = mmap(0, nb_pages * PAGE_SIZE, 
+		PROT_READ | PROT_WRITE,
+		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    
+	ASSERT_EQ(dsm != MAP_FAILED, 1); 
+
+    size_t index = get_page_index((char *)dsm + 1452);
+    ASSERT_EQ(index, 0);
+
+    index = get_page_index((char *)dsm + 4100);
+    ASSERT_EQ(index, 1);
+
+    index = get_page_index((char *)dsm + 17376);
+    ASSERT_EQ(index, 4);
+
+    index = get_page_index((char *)dsm + 4095);
+    ASSERT_EQ(index, 0);
+
+    index = get_page_index((char *)dsm + 4096);
+    ASSERT_EQ(index, 1);
+
+    index = get_page_index((char *)dsm + 4090);
+    ASSERT_EQ(index, 0);
+
+}
