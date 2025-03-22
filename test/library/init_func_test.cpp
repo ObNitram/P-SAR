@@ -77,8 +77,6 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
             }
         }
         ASSERT_EQ(found, 1);
-
-        waitpid(pid, NULL, 0);
     }else{
         sleep(3);
         join_DSM(addr_init, init_port, joiner_port);
