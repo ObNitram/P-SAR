@@ -5,21 +5,10 @@ const struct node_id EMPTY_NODE = {"", -1};
 struct node_id me;
 
 // enum for local status of lock
-enum lock_status {
-	READING = READ,
-	WRITING = WRITE,
-	NONE,
-};
 
-struct core_info {
-	enum lock_status mode;
-	struct node_id write_request;
-	struct node_list read_request;
-	struct node_id have_token;
-};
 
-static struct core_info *core_info;
-static size_t core_size;
+struct core_info *core_info;
+size_t core_size;
 
 /// @brief Structure representing a message for the slsm algorithm
 /// @details Contains the type of the message, the identifier of the sender, the page, the mode and the initiator.
@@ -71,7 +60,14 @@ void init_core(size_t nbpages, void *pages_data)
 {
 	//create structure sauf si dans page_info
 	core_info = malloc(sizeof(struct core_info) * nbpages);
-	core_size = nbpages;
+	if (!pages_data) {
+		core_size = nbpages;
+		for (struct core_info * i = core_info; i < core_info + core_size; i++) {
+			i->mode = NONE;
+		}
+	}else{
+		memcpy(core_info, pages_data, sizeof(struct core_info) * nbpages);
+	}
 	//init handler
 }
 
@@ -79,6 +75,18 @@ void clean_core()
 {
 	free(core_info);
 	core_info = NULL;
+}
+
+/// @brief This function is only for the init_func_test, 
+/// 	The init core has been done in the way to verify that the data 
+/// 	Has correctly been copied
+///		Free for you, to change it 
+int check_core_info_test() {
+	for (int i = 0; i<core_size; i++) {
+		if ((core_info + i)->mode != NONE)
+			return 0;
+	}
+	return 1;
 }
 
 void ask_lock(size_t page_id, enum lock_type lock_type)
@@ -270,7 +278,8 @@ void handle_UNLOCK(struct message *message)
 }
 
 void *get_core_info(size_t *sz) {
-	return NULL;
+	*sz = core_size * sizeof(struct core_info);
+	return core_info;
 }
 
 int node_equal(struct node_id *node1, struct node_id *node2){

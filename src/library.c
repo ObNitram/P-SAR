@@ -1,7 +1,6 @@
 #include "library.h"
-
-#include <assert.h>
-#include <stdio.h>
+#include <unistd.h>
+#include "utils/logger.h"
 
 void *dsm;
 unsigned int nb_pages;
@@ -14,12 +13,13 @@ static void init_nodes(void) {
 	node_list.node.port = -1;
 }
 
-static struct node_list *add_to_nodes(const char *host, const int port) {
+struct node_list *add_to_nodes(const char *host, const int port) {
 	struct node_list *ndlst = malloc(sizeof(struct node_list));
 	size_t sz = min(strlen(host),INET6_ADDRSTRLEN) ;
 	memcpy(ndlst->node.host, host, sizeof(char) * sz);
 	ndlst->node.port = port;
 	list_add(&ndlst->nlist, &node_list.nlist);
+	nb_nodees++;
 	return ndlst;
 }
 
@@ -31,6 +31,7 @@ static void free_nodes(void) {
 }
 
 static void JOIN_DSM_handler(struct message *message) {
+	log_info("exec of JOIN HANDLER\n");
 	size_t ms_sz = sizeof(struct INFO_DSM_message);
 	size_t nd_sz = sizeof(struct node_id);
 	size_t cr_sz;
@@ -38,49 +39,64 @@ static void JOIN_DSM_handler(struct message *message) {
 	
 	// total size of the mess
 	size_t sz = ms_sz  + nb_nodees * nd_sz + cr_sz;
+	log_info("sz = %zu | mess = %zu | nd = %zu\n", sz, ms_sz, nd_sz);
 
 	struct INFO_DSM_message *dsm_info = malloc(sz);
 	dsm_info->header.message_type = INFO_DSM;
 	dsm_info->nb_pages = nb_pages;
 	dsm_info->nb_nodes = nb_nodees;
-	void *addr = dsm_info + ms_sz;
+	void *addr = ((void *)dsm_info) + ms_sz;
+	void *addr2 = dsm_info + 1;
+	size_t dst = (size_t) (addr - (void *)dsm_info);
+	assert(dst == ms_sz);
+	assert(addr == addr2);
 
 	// copy of all node_id
 	struct node_list *nlist = &node_list;
 	unsigned int node_counter = 0;
 	list_for_each_entry_continue(nlist, &node_list.nlist, nlist) {
+		assert(nlist->node.port != -1);
 		node_counter++;
 		memcpy(addr, &nlist->node, nd_sz);
 		addr += nd_sz;
 	}
 	assert(node_counter == nb_nodees);
 
+	assert(((void *)dsm_info) + ms_sz + nd_sz * node_counter == addr);
+
 	// copy the core info
 	memcpy(addr, core_info, cr_sz);
 	addr += cr_sz;
 
+	assert(((void *) dsm_info) + sz == addr);
+
+	sleep(1);
+	log_info("try sending INFO_DSM to child\n");
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(message->sender.host, message->sender.port);
+	assert(list_entry(node_list.nlist.next, struct node_list, nlist)->node.port == message->sender.port);
 	free_message((struct message *)dsm_info);
-	free_message(message);
 }
 
 static void INFO_DSM_handler(struct message *message) {
+	log_info("exec of INFO HANDLER\n");
 	struct INFO_DSM_message *idsm = (struct INFO_DSM_message *)
 		message;
 	nb_pages = idsm->nb_pages;
+	log_info("rec nb pages %d\n", nb_pages);
 
-	void *addr = (void *) (idsm + 1);
+	void *addr = idsm + 1;
 
-	struct node_id *n = (struct node_id *)addr;
+	struct node_id n;
 	for (unsigned int i = 0; i < idsm->nb_nodes; i++) {
-		add_to_nodes(n->host, n->port);
-		nb_nodees++;
-		n++;
+		memcpy(&n, addr, sizeof(struct node_id));
+		add_to_nodes(n.host, n.port);
+		log_info("host local port %d added\n", n.port);	
+		addr += sizeof(struct node_id);	
 	}
 
-	init_core(nb_pages, (void *) n);
-	free_message(message);
+	init_core(nb_pages, addr);
+	log_info("core inited in info handler\n");
 }
 
 static void set_all_handlers(void) {
@@ -101,13 +117,12 @@ void *Init_DSM(size_t size, int port)
 		return NULL;
 	}
 	
-	set_all_handlers();
 	start_server(port);
+	set_all_handlers();
 
 	// init internal data
 	init_core(nb_pages, NULL);
 	init_nodes();
-
 	return dsm;
 }
 
@@ -115,15 +130,17 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 {
 	size_t msg_sz = sizeof(struct message);
 
-	set_all_handlers();
 	start_server(server_port);
+	set_all_handlers();
 
 	init_nodes();
 	struct node_id *nd = &add_to_nodes(host, connect_port)->node;
+	log_info("joiner : added port %d", nd->port);
 
 	struct message *mess_joining = malloc(msg_sz);
 	mess_joining->message_type = JOIN_DSM;
 	send_message(nd, mess_joining, msg_sz);
+	log_info("joiner : SENT JOIN_DSM\n");
 	
 	struct message *dsm_info = wait_message(INFO_DSM, NULL) ;
 	

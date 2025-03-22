@@ -9,6 +9,9 @@
 #include "core/core.h"
 #include "network/message.h"
 #include "utils/utils.h"
+#include <assert.h>
+#include <stdio.h>
+#include "utils/logger.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -16,6 +19,8 @@
 extern void *dsm;
 extern unsigned int nb_pages;
 extern const size_t mask;
+
+struct node_list *add_to_nodes(const char *host, const int port);
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///

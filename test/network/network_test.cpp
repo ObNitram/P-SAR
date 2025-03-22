@@ -23,7 +23,6 @@ void callBack(struct message *message)
 
 	EXPECT_TRUE(strcmp(message->sender.host, localhost) == 0);
 
-	free_message(message);
 }
 
 
@@ -95,7 +94,6 @@ void callBack2(struct message *mes)
 
 	EXPECT_TRUE(strcmp(cast_message->data3, localhost) == 0);
 
-	free_message(mes);
 }
 
 TEST(network, basic_receive2)

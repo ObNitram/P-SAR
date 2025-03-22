@@ -140,24 +140,26 @@ void server_thread()
 
 		int message_usage_counter = 0;
 
+
+		int diff = message_type_queues[message_type].foo != NULL;
+
+		if (message_type_queues[message->message_type].foo != NULL) {
+			message_usage_counter++;
+			message_type_queues[message->message_type].foo(message);
+		}
+		
 		// Is user waiting on thread
 		pthread_mutex_lock(&mutex);
-
+		
 		if (waiting_message_type == message_type) {
 			waiting_message = copy_message(message, message_size);
 			message_usage_counter++;
 			pthread_cond_signal(&cond);
 		}
-
+		
 		pthread_mutex_unlock(&mutex);
-
-		if (message_type_queues[message->message_type].foo != NULL) {
-			message_usage_counter++;
-			message_type_queues[message->message_type].foo(message);
-		} else {
-			free_message(message);
-		}
-
+		
+		free_message(message);
 		ensure_warning(message_usage_counter > 0,
 		               "Message type %lu receive but not used",
 		               message_type);

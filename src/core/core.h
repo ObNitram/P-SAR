@@ -12,6 +12,8 @@
 
 extern const struct node_id EMPTY_NODE;
 extern struct node_id me;
+extern struct core_info *core_info;
+extern size_t core_size;
 
 // Glossaire:
 //     data owner : la node qui à la dernière version d'une page
@@ -35,7 +37,17 @@ extern struct node_id me;
 enum requests_status { PENDING, RUNNING };
 
 enum lock_type { READ, WRITE };
-
+ enum lock_status {
+	READING = READ,
+	WRITING = WRITE,
+	NONE
+};
+struct core_info {
+	enum lock_status mode;
+	struct node_id write_request;
+	struct node_list read_request;
+	struct node_id have_token;
+};
 struct page {
 	struct node_id *
 		data_owner; // Update lors du changement downer par un broadcast NULL if we own it
@@ -65,7 +77,7 @@ extern struct page *page_info;
 // if (lock_type == WRITE) {
 //     page->have_token = true;
 // }
-void ask_lock(size_t page_id, enum lock_type lock_type);
+extern void ask_lock(size_t page_id, enum lock_type lock_type);
 
 // assert(page->my_lock != NONE);
 // if (page->my_lock == READ) {  // we readed
@@ -81,11 +93,13 @@ void ask_lock(size_t page_id, enum lock_type lock_type);
 //     handle_pending_request(page); // gerer les prochains read et gerer prochain right
 // }
 // page->my_lock = NONE;
-void unlock(size_t page_id);
+extern void unlock(size_t page_id);
 
-void init_core(size_t nb_pages, void *pages_data);
+extern void init_core(size_t nb_pages, void *pages_data);
 
-void clean_core(void);
+extern void clean_core(void);
+
+extern int check_core_info_test(void);
 
 extern void *get_core_info(size_t *sz);
 
