@@ -75,7 +75,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 
         //we add some nodes
         for (int i = 4; i>0; i--) {
-            add_to_nodes(node_list_init[i].host, node_list_init[i].port);
+            add_to_nodes(&node_list, node_list_init[i].host, node_list_init[i].port);
         }
 
         struct message * join_mess = wait_message(JOIN_DSM, NULL);
@@ -88,7 +88,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         free_message(join_mess);
         stop_server();
         clean_core();
-        free_nodes();
+        free_nodes(&node_list);
         free_DSM();
     }else{
         // wait until INIT is setup
@@ -112,7 +112,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 
         stop_server();
         clean_core();
-        free_nodes();
+        free_nodes(&node_list);
         free_DSM();
 
         exit(0);

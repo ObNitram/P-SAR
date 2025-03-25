@@ -23,7 +23,7 @@ static void JOIN_DSM_handler(struct message *message)
 		build_message(cr_sz, core_info, &sz);
 
 	send_message(&message->sender, (struct message *)dsm_info, sz);
-	add_to_nodes(message->sender.host, message->sender.port);
+	add_to_nodes(&node_list, message->sender.host, message->sender.port);
 	free_message((struct message *)dsm_info);
 }
 
@@ -37,7 +37,7 @@ static void INFO_DSM_handler(struct message *message)
 
 	struct node_id *n = (struct node_id *) addr;
 	for (unsigned int i = 0; i < idsm->nb_nodes; i++) {
-		add_to_nodes(n->host, n->port);
+		add_to_nodes(&node_list ,n->host, n->port);
 		n++;	
 	}
 
@@ -79,7 +79,7 @@ void *Init_DSM(size_t size, int port)
 	}
 
 	init_core(nb_pages, NULL);
-	init_nodes();
+	init_nodes(&node_list);
 	return dsm;
 }
 
@@ -95,8 +95,8 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	start_server(server_port);
 	set_all_handlers();
 
-	init_nodes();
-	struct node_id *nd = &add_to_nodes(host, connect_port)->node;
+	init_nodes(&node_list);
+	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
 
 	struct message *mess_joining = malloc(msg_sz);
 	mess_joining->message_type = JOIN_DSM;
@@ -115,7 +115,7 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	if (dsm == MAP_FAILED) {
 		perror("map allocation failed");
 		stop_server();
-		free_nodes();
+		free_nodes(&node_list);
 		clean_core();
 		return NULL;
 	}

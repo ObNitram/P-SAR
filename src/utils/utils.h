@@ -31,10 +31,11 @@ enum message_type {
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
-extern void init_nodes(void);
+extern void init_nodes(struct node_list *list);
 
-extern struct node_list *add_to_nodes(const char *host, const int port);
+extern struct node_list *add_to_nodes(struct node_list *list, const char *host,
+                                      const int port);
+
+extern void free_nodes(struct node_list *list);
 
 extern size_t get_page_index(void *adr);
-
-extern void free_nodes(void);
