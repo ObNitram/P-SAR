@@ -13,6 +13,7 @@
 #include "network/message.h"
 #include "utils/utils.h"
 #include "utils/logger.h"
+#include "INFO_DSM_message.h"
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///

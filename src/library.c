@@ -1,6 +1,7 @@
 #include "library.h"
 
-static int init_my_node_id() {
+static int init_my_node_id() 
+{
 	char *ip = get_server_ip();
 	if (!ip) {
 		perror("didn't get server ip");
@@ -12,38 +13,22 @@ static int init_my_node_id() {
 	return 0;
 }
 
-static void JOIN_DSM_handler(struct message *message) {
-	size_t ms_sz = sizeof(struct INFO_DSM_message);
-	size_t nd_sz = sizeof(struct node_id);
+static void JOIN_DSM_handler(struct message *message) 
+{
 	size_t cr_sz;
 	void *core_info = get_core_info(&cr_sz);
-	
-	// total size of the mess
-	size_t sz = ms_sz  + nb_nodees * nd_sz + cr_sz;
+	size_t sz;
 
-	struct INFO_DSM_message *dsm_info = malloc(sz);
-	dsm_info->header.message_type = INFO_DSM;
-	dsm_info->nb_pages = nb_pages;
-	dsm_info->nb_nodes = nb_nodees;
-	void *addr = dsm_info + 1;
-
-	// copy of all node_id
-	struct node_list *nlist = &node_list;
-	list_for_each_entry_continue(nlist, &node_list.nlist, nlist) {
-		memcpy(addr, &nlist->node, nd_sz);
-		addr += nd_sz;
-	}
-
-	// copy the core info
-	memcpy(addr, core_info, cr_sz);
-	addr += cr_sz;
+	struct INFO_DSM_message * dsm_info = 
+		build_message(cr_sz, core_info, &sz);
 
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(message->sender.host, message->sender.port);
 	free_message((struct message *)dsm_info);
 }
 
-static void INFO_DSM_handler(struct message *message) {
+static void INFO_DSM_handler(struct message *message) 
+{
 	struct INFO_DSM_message *idsm = (struct INFO_DSM_message *)
 		message;
 	nb_pages = idsm->nb_pages;
@@ -59,13 +44,15 @@ static void INFO_DSM_handler(struct message *message) {
 	init_core(nb_pages, n);
 }
 
-static void set_all_handlers(void) {
+static void set_all_handlers(void) 
+{
 	set_sigaction_handler();
 	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
 	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
 }
 
-static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (*exc_func) (size_t, enum lock_type)) {
+static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (*exc_func) (size_t, enum lock_type)) 
+{
 	size_t start_index = get_page_index(adr);
 	size_t end_index = get_page_index(adr + s);
 	for (size_t page_id = start_index; page_id <= end_index; page_id++) {
@@ -96,7 +83,8 @@ void *Init_DSM(size_t size, int port)
 	return dsm;
 }
 
-void free_DSM() {
+void free_DSM() 
+{
 	munmap(dsm, nb_pages * PAGE_SIZE);
 }
 
