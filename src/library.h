@@ -23,6 +23,8 @@
 /// @return A pointer to the allocated shared memory region on success, NULL otherwise.
 void *Init_DSM(size_t size, int port);
 
+void free_DSM(void);
+
 
 /// @brief Adds a new node to the distributed shared memory system by connecting to an existing node.
 ///

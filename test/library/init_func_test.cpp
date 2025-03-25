@@ -85,6 +85,11 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         int eq = check_node_list_equality(node_list_init);
         ASSERT_EQ(eq, 1);
 
+        free_message(join_mess);
+        stop_server();
+        clean_core();
+        free_nodes();
+        free_DSM();
     }else{
         // wait until INIT is setup
         sleep(1);
@@ -104,6 +109,11 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 
         eq = check_core_info_test();
         ASSERT_EQ(eq, 1);
+
+        stop_server();
+        clean_core();
+        free_nodes();
+        free_DSM();
 
         exit(0);
     }
@@ -137,4 +147,5 @@ TEST(addr_to_page, get_page_index) {
     index = get_page_index((char *)dsm + 4090);
     ASSERT_EQ(index, 0);
 
+    free_DSM();
 }

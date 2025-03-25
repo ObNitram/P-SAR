@@ -8,6 +8,7 @@ static int init_my_node_id() {
 	}
 	memcpy(me.host, ip, INET6_ADDRSTRLEN * sizeof(char));
 	me.port = get_server_port();
+	free(ip);
 	return 0;
 }
 
@@ -93,6 +94,10 @@ void *Init_DSM(size_t size, int port)
 	init_core(nb_pages, NULL);
 	init_nodes();
 	return dsm;
+}
+
+void free_DSM() {
+	munmap(dsm, nb_pages * PAGE_SIZE);
 }
 
 void *join_DSM(const char *host, int connect_port, int server_port)
