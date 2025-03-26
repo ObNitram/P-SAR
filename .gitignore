@@ -72,3 +72,6 @@ cmake-build-release
 cmake-build-relwithdebinfo
 .idea
 
+# Vscode stuff
+.vscode
+.cache

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef LOGGEH_H
+#define LOGGER_H
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
@@ -8,7 +9,7 @@
 /// @details This variable defines the output stream for the logging messages.
 /// It can be set to any valid FILE pointer (e.g., stdout, stderr, or a file opened with fopen).
 /// By default, the stream is set to stdout.
-FILE *g_log_stream;
+extern FILE *g_log_stream;
 
 /// @brief Macro to initialize the logger and log the initialization and output stream definition.
 #define init_logger(stream) do {                                                       \
@@ -39,19 +40,8 @@ FILE *g_log_stream;
 /// @param file The source file name.
 /// @param function The function name.
 /// @param line The line number.
-void log_message_internal(char *level, char *message, const char *file,
-                          const char *function, int line)
-{
-	// Get the current time as a Unix timestamp (seconds since the epoch)
-	time_t now = time(NULL);
-
-	// Get the process ID
-	pid_t pid = getpid();
-
-	// Print the formatted log message to the global log stream.
-	fprintf(g_log_stream, "[%ld] [PID: %d] [%s] %s:%s:%d - %s\n",
-	        now, pid, level, file, function, line, message);
-}
+extern void log_message_internal(char *level, char *message, const char *file,
+                          const char *function, int line);
 
 /// @brief Variadic macro wrapper for log_message_internal to automatically include file, function, and line information.
 /// @param level The logging level.
@@ -113,3 +103,4 @@ void log_message_internal(char *level, char *message, const char *file,
 /// @param fmt The format string for the log message.
 /// @param ... The variadic arguments to format the message.
 #define ensure_error(condition, fmt, ...) ensure(condition, "ERROR", fmt, ##__VA_ARGS__)
+#endif

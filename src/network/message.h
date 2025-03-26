@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <netinet/in.h>
+#include "../utils/list.h"
 
 #define MAX_MESSAGES 100
 
