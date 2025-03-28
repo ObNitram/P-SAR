@@ -9,4 +9,4 @@ extern void sync_page(struct node_id *owner, size_t index);
 
 extern void init_data_transfer(unsigned int nb_pages, struct node_id* owners);
 
-extern void clear_data_transfer();
+extern void clean_data_transfer();

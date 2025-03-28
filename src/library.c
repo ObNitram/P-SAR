@@ -20,7 +20,7 @@ static void JOIN_DSM_handler(struct message *message)
 	size_t sz;
 
 	struct INFO_DSM_message * dsm_info = 
-		build_message(cr_sz, core_info, &sz);
+		build_message(cr_sz, core_info, (void *) page_owners, &sz);
 
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(&node_list, message->sender.host, message->sender.port);
@@ -40,6 +40,9 @@ static void INFO_DSM_handler(struct message *message)
 		add_to_nodes(&node_list ,n->host, n->port);
 		n++;	
 	}
+
+	init_data_transfer(nb_pages, n);
+	n += nb_pages;
 
 	init_core(nb_pages, n);
 }
@@ -79,6 +82,7 @@ void *Init_DSM(size_t size, int port)
 	}
 
 	init_core(nb_pages, NULL);
+	init_data_transfer(nb_pages, NULL);
 	init_nodes(&node_list);
 	return dsm;
 }

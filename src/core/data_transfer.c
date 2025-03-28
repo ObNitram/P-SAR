@@ -64,6 +64,6 @@ void init_data_transfer(unsigned int nb_pages, struct node_id* owners) {
     }
 }
 
-void clear_data_transfer() {
+void clean_data_transfer() {
     free(page_owners);
 }
