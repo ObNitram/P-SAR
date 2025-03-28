@@ -101,4 +101,6 @@ extern int check_core_info_test(void);
 
 extern void *get_core_info(size_t *sz);
 
-extern int node_equal(struct node_id *node1, struct node_id *node2);
+extern struct node_id* get_owner(size_t page_id);
+
+extern void set_owner(struct node_id *owner, size_t page_id);

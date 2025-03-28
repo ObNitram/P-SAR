@@ -46,6 +46,7 @@ static void INFO_DSM_handler(struct message *message)
 
 static void set_all_handlers(void) 
 {
+	set_data_transfer_handler();
 	set_sigaction_handler();
 	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
 	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
