@@ -100,7 +100,3 @@ extern void clean_core(void);
 extern int check_core_info_test(void);
 
 extern void *get_core_info(size_t *sz);
-
-extern struct node_id* get_owner(size_t page_id);
-
-extern void set_owner(struct node_id *owner, size_t page_id);

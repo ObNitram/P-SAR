@@ -3,11 +3,13 @@
 #include "../core/core.h"
 #include <stdlib.h>
 
+struct node_id *page_owners;
+
 static void RECV_PAGE_handler(struct message *message) {
     size_t *page_id = (size_t *) (message + 1);
     void *addr_np = (void *) (page_id + 1);
     void *addr_p = dsm + (*page_id) * PAGE_SIZE;
-    set_owner(&message->sender, *page_id);
+    node_copy(page_owners + *page_id, &message->sender);
     memcpy(addr_np, addr_p, PAGE_SIZE);
 }
 
@@ -27,7 +29,7 @@ static void transfer_page(struct node_id *requester, size_t page_id) {
 static void ASK_PAGE_handler(struct message *message) {
     size_t *page_id = (size_t *) (message + 1);
     struct node_id *requester = (struct node_id *) (page_id + 1);
-    struct node_id *owner = get_owner(*page_id);
+    struct node_id *owner = page_owners + *page_id;
     if (node_equal(owner, &me)) {
         transfer_page(requester, *page_id);
     }else{
@@ -50,10 +52,18 @@ void sync_page(struct node_id *owner, size_t page_id){
     free_message(msg);
 }
 
-void set_data_transfer_handler() {
+void init_data_transfer(unsigned int nb_pages, struct node_id* owners) {
     addHandler(RECV_PAGE, NULL, RECV_PAGE_handler);
     addHandler(ASK_PAGE, NULL, ASK_PAGE_handler);
+    page_owners = malloc(nb_pages * sizeof(struct node_id));
+    if (owners) {
+        memcpy(page_owners, owners, sizeof(struct node_id) * nb_pages);
+    }else {
+        for (unsigned int i = 0; i<nb_pages; i++) 
+            node_copy(page_owners + i, &me);
+    }
 }
 
-
-
+void clear_data_transfer() {
+    free(page_owners);
+}

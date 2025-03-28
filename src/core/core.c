@@ -282,14 +282,6 @@ void *get_core_info(size_t *sz) {
 	return core_info;
 }
 
-struct node_id* get_owner(size_t page_id){
-	return NULL;
-}
-
-void set_owner(struct node_id *owner, size_t page_id){
-
-}
-
 void handle_lock_read(struct page *page, struct node_id id_requester)
 {
 	// if (page->in_chainon == false) {
