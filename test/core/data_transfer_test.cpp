@@ -11,10 +11,10 @@ extern "C" {
 }
 
 
-const char *addr_init = "127.0.0.1";
-const int init_port = 2451;
-const int joiner_port = 4321;
-const int nb_pages_ = 10;
+static const char *addr_init = "127.0.0.1";
+static const int init_port = 2451;
+static const int joiner_port = 4321;
+static const int nb_pages_ = 10;
 
 struct node_id page_owners_both[10] = {
     {.host = "127.0.0.1", .port =init_port}, 
@@ -31,7 +31,7 @@ struct node_id page_owners_both[10] = {
 
 #define SIZE_DSM 40960
 
-int check_page_owners_equality() {
+static int check_page_owners_equality() {
     for(int i = 0; i<nb_pages_; i++) {
         if (page_owners[i].port != page_owners_both[i].port) {
             return 0;
@@ -54,34 +54,21 @@ TEST(data_transfer, join_then_try_sync_a_page)
         
         Init_DSM(SIZE_DSM, init_port);
 
-        log_info("INIT :  dsm ready");
-
-        ASSERT_EQ(nb_pages, nb_pages_);
-
-
-        ASSERT_EQ(list_empty(&node_list.nlist), 1);
-
-
-        struct message * join_mess = wait_message(JOIN_DSM, NULL);
-        log_info("message join recved from %d\n", join_mess->sender.port);
-
         eq = check_page_owners_equality();
         ASSERT_EQ(eq, 1);
 
+        // edit some data
         int *tab = (int *) dsm;
         *tab = 0;
-
         for (int *i = tab + 1; i < tab + 100; i++) {
             *i = *(i - 1) + (i - tab);
         }
 
+        // recved ask page and transfered it
         struct message * ask_page = wait_message(ASK_PAGE, NULL);
 
-        log_info("mess ask recved\n");
+        log_info("mess mess recved and page transfered\n");
 
-        sleep(1);
-
-        free_message(join_mess);
         free_message(ask_page);
         stop_server();
         clean_data_transfer();

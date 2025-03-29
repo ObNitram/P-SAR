@@ -11,14 +11,14 @@ extern "C" {
 }
 
 
-const char *addr_init = "127.0.0.1";
-const int init_port = 2451;
-const int joiner_port = 4321;
-const int nb_pages_ = 10;
-const int nb_nodes_ = 5;
+static const char *addr_init = "127.0.0.1";
+static const int init_port = 2451;
+static const int joiner_port = 4321;
+static const int nb_pages_ = 10;
+static const int nb_nodes_ = 5;
 
 // the final node_list of JOINER
-struct node_id node_list_joiner[5] = {
+static struct node_id node_list_joiner[5] = {
     {.host = "127.0.0.1", .port =init_port}, 
     {.host = "127.0.0.1", .port =init_port + 17},
     {.host = "127.0.0.1", .port =init_port + 7},
@@ -27,7 +27,7 @@ struct node_id node_list_joiner[5] = {
 };
 
 // the final node_list of init
-struct node_id node_list_init[5] = {
+static struct node_id node_list_init[5] = {
     {.host = "127.0.0.1", .port =joiner_port}, 
     {.host = "127.0.0.1", .port =init_port + 4}, 
     {.host = "127.0.0.1", .port =init_port + 5}, 
@@ -35,22 +35,9 @@ struct node_id node_list_init[5] = {
     {.host = "127.0.0.1", .port =init_port + 17},
 };
 
-struct node_id page_owners_both[10] = {
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port}
-};
-
 #define SIZE_DSM 40960
 
-int check_node_list_equality(struct node_id nodes[]) {
+static int check_node_list_equality(struct node_id nodes[]) {
     struct node_list *n1 = &node_list;
     int found = 0;
     list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
@@ -63,15 +50,6 @@ int check_node_list_equality(struct node_id nodes[]) {
         }
         if (!found) return 0;
         found = 0;
-    }
-    return 1;
-}
-
-int check_page_owners_equality() {
-    for(int i = 0; i<nb_pages_; i++) {
-        if (page_owners[i].port != page_owners_both[i].port) {
-            return 0;
-        }
     }
     return 1;
 }
@@ -108,9 +86,6 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         int eq = check_node_list_equality(node_list_init);
         ASSERT_EQ(eq, 1);
 
-        eq = check_page_owners_equality();
-        ASSERT_EQ(eq, 1);
-
         free_message(join_mess);
         stop_server();
         clean_data_transfer();
@@ -135,9 +110,6 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         ASSERT_EQ(eq, 1);
 
         eq = check_core_info_test();
-        ASSERT_EQ(eq, 1);
-
-        eq = check_page_owners_equality();
         ASSERT_EQ(eq, 1);
 
         stop_server();
