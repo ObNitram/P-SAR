@@ -10,7 +10,7 @@ static void RECV_PAGE_handler(struct message *message) {
     void *addr_np = (void *) (page_id + 1);
     void *addr_p = dsm + (*page_id) * PAGE_SIZE;
     node_copy(page_owners + *page_id, &message->sender);
-    memcpy(addr_np, addr_p, PAGE_SIZE);
+    memcpy(addr_p, addr_np, PAGE_SIZE);
 }
 
 static void transfer_page(struct node_id *requester, size_t page_id) {

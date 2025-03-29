@@ -30,79 +30,78 @@ static int server_port = -1;
 
 void server_thread()
 {
-	log_info("Server thread started");
 
 	// Enable asynchronous cancellation: forces the thread to be cancelled at any moment.
 	// WARNING: This is dangerous because it can cancel the thread in the middle of a critical section.
 	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
-	while (server_is_running) {
-		listen_sock = -1;
-		struct addrinfo hints, *res, *p;
-		int rv;
-		const char listen_port[6]; // Listening port (as string)
+	listen_sock = -1;
+	struct addrinfo hints, *res, *p;
+	int rv;
+	const char listen_port[6]; // Listening port (as string)
 
-		snprintf(listen_port, sizeof(listen_port), "%d", server_port);
+	snprintf(listen_port, sizeof(listen_port), "%d", server_port);
 
-		// Set up hints for getaddrinfo for a passive (server) socket.
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
-		hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-		hints.ai_flags = AI_PASSIVE; // Use the local IP
+	// Set up hints for getaddrinfo for a passive (server) socket.
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
+	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+	hints.ai_flags = AI_PASSIVE; // Use the local IP
 
-		if ((rv = getaddrinfo(NULL, listen_port, &hints, &res)) != 0) {
-			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-			return;
+	if ((rv = getaddrinfo(NULL, listen_port, &hints, &res)) != 0) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		return;
+	}
+
+	// Loop through all results and bind to the first we can.
+	for (p = res; p != NULL; p = p->ai_next) {
+		listen_sock = socket(p->ai_family, p->ai_socktype,
+		                     p->ai_protocol);
+		if (listen_sock < 0) {
+			perror("socket");
+			continue;
 		}
-
-		// Loop through all results and bind to the first we can.
-		for (p = res; p != NULL; p = p->ai_next) {
-			listen_sock = socket(p->ai_family, p->ai_socktype,
-			                     p->ai_protocol);
-			if (listen_sock < 0) {
-				perror("socket");
-				continue;
-			}
-			// Enable address reuse.
-			int optval = 1;
-			if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR,
-			               &optval,
-			               sizeof(optval)) < 0) {
-				perror("setsockopt");
-				close(listen_sock);
-				continue;
-			}
-			if (bind(listen_sock, p->ai_addr, p->ai_addrlen) < 0) {
-				perror("bind");
-				close(listen_sock);
-				continue;
-			}
-			break; // Successfully bound.
-		}
-
-		if (p == NULL || listen_sock == -1) {
-			fprintf(
-				stderr,
-				"Failed to bind listening socket on port %s\n",
-				listen_port);
-			freeaddrinfo(res);
-			return;
-		}
-		freeaddrinfo(res);
-
-		// Start listening for incoming connections.
-		if (listen(listen_sock, 5) < 0) {
-			perror("listen");
+		// Enable address reuse.
+		int optval = 1;
+		if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR,
+		               &optval,
+		               sizeof(optval)) < 0) {
+			perror("setsockopt");
 			close(listen_sock);
-			return;
+			continue;
 		}
+		if (bind(listen_sock, p->ai_addr, p->ai_addrlen) < 0) {
+			perror("bind");
+			close(listen_sock);
+			continue;
+		}
+		break; // Successfully bound.
+	}
 
-		// wake up the main thread
-		pthread_mutex_lock(&mutex);
-		pthread_cond_signal(&cond);
-		pthread_mutex_unlock(&mutex);
+	if (p == NULL || listen_sock == -1) {
+		fprintf(
+			stderr,
+			"Failed to bind listening socket on port %s\n",
+			listen_port);
+		freeaddrinfo(res);
+		return;
+	}
+	freeaddrinfo(res);
 
+	// Start listening for incoming connections.
+	if (listen(listen_sock, 5) < 0) {
+		perror("listen");
+		close(listen_sock);
+		return;
+	}
+
+	// wake up the main thread
+	pthread_mutex_lock(&mutex);
+	pthread_cond_signal(&cond);
+	pthread_mutex_unlock(&mutex);
+
+	while (server_is_running) {
 
 		// Accept an incoming connection.
 		struct sockaddr_storage client_addr;
@@ -171,13 +170,12 @@ void server_thread()
 		               message_type);
 
 		close(conn_sock);
-		close(listen_sock);
 	}
+	close(listen_sock);
 }
 
 void start_server(const int port)
 {
-	log_info("Starting server on port %i", port);
 	server_port = port;
 	for (int i = 0; i < MAX_MESSAGES; i++) {
 		message_type_queues[i].foo = NULL;
@@ -193,7 +191,6 @@ void start_server(const int port)
 
 void stop_server()
 {
-	log_info("Stopping server...");
 	server_is_running = 0;
 
 	if (pthread_cancel(server_thread_id) != 0) {
@@ -209,7 +206,6 @@ void stop_server()
 	for (int i = 0; i < MAX_MESSAGES; i++) {
 		message_type_queues[i].foo = NULL;
 	}
-	log_info("Server stopped.");
 }
 
 int get_server_port()
@@ -331,7 +327,6 @@ void send_message(const struct node_id *dest,
 		return;
 	}
 
-	log_info("Message type %lu sent", message->message_type);
 
 	// Clean up resources: close the socket and free the address info structure
 	close(sockfd);
@@ -353,11 +348,9 @@ struct message *wait_message(const size_t message_type,
 
 	pthread_mutex_lock(&mutex);
 
-	log_info("Waiting for message type %lu", message_type);
 
 	pthread_cond_wait(&cond, &mutex);
 
-	log_info("Message type %lu received", message_type);
 
 	struct message *message = waiting_message;
 	waiting_message = NULL;
