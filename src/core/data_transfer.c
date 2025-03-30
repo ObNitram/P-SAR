@@ -49,6 +49,7 @@ void sync_page(struct node_id *owner, size_t page_id){
     node_copy((struct node_id *) (index_p + 1), &me);
     send_message(owner, msg, ms_sz);
     free_message(wait_message(RECV_PAGE, NULL));
+    LOG_DATA_TRANS("synced page %zu\n", page_id);
     free_message(msg);
 }
 

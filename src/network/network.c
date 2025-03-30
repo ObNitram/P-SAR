@@ -1,16 +1,4 @@
 #include "network.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <pthread.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-
-#include "utils/logger.h"
-
 
 static struct message *waiting_message;
 static size_t waiting_message_type;
@@ -30,6 +18,7 @@ static int server_port = -1;
 
 void server_thread()
 {
+	LOG_NETWORK("Server thread started");
 
 	// Enable asynchronous cancellation: forces the thread to be cancelled at any moment.
 	// WARNING: This is dangerous because it can cancel the thread in the middle of a critical section.
@@ -165,7 +154,7 @@ void server_thread()
 		pthread_mutex_unlock(&mutex);
 		
 		free_message(message);
-		ensure_warning(message_usage_counter > 0,
+		ENSURE_WARNING_NETWORK(message_usage_counter > 0,
 		               "Message type %lu receive but not used",
 		               message_type);
 
@@ -176,6 +165,7 @@ void server_thread()
 
 void start_server(const int port)
 {
+	LOG_NETWORK("Starting server on port %i", port);
 	server_port = port;
 	for (int i = 0; i < MAX_MESSAGES; i++) {
 		message_type_queues[i].foo = NULL;
@@ -191,6 +181,7 @@ void start_server(const int port)
 
 void stop_server()
 {
+	LOG_NETWORK("Stopping server...");
 	server_is_running = 0;
 
 	if (pthread_cancel(server_thread_id) != 0) {
@@ -206,6 +197,7 @@ void stop_server()
 	for (int i = 0; i < MAX_MESSAGES; i++) {
 		message_type_queues[i].foo = NULL;
 	}
+	LOG_NETWORK("Server stopped.");
 }
 
 int get_server_port()
@@ -247,13 +239,13 @@ void send_message(const struct node_id *dest,
                   struct message *message,
                   const size_t message_size)
 {
-	if (ensure_error(dest != NULL, "Destination node required")) {
+	if (ENSURE_ERROR_NETWORK(dest != NULL, "Destination node required")) {
 		return;
 	}
-	if (ensure_error(dest->host != NULL, "Destination host required")) {
+	if (ENSURE_ERROR_NETWORK(dest->host != NULL, "Destination host required")) {
 		return;
 	}
-	if (ensure_error(dest->port != 0, "Destination port required")) {
+	if (ENSURE_ERROR_NETWORK(dest->port != 0, "Destination port required")) {
 		return;
 	}
 
@@ -326,7 +318,7 @@ void send_message(const struct node_id *dest,
 		freeaddrinfo(servinfo);
 		return;
 	}
-
+	LOG_NETWORK("Message type %lu sent", message->message_type);
 
 	// Clean up resources: close the socket and free the address info structure
 	close(sockfd);
@@ -348,9 +340,11 @@ struct message *wait_message(const size_t message_type,
 
 	pthread_mutex_lock(&mutex);
 
+	LOG_NETWORK("Waiting for message type %lu", message_type);
 
 	pthread_cond_wait(&cond, &mutex);
 
+	LOG_NETWORK("Message type %lu received", message_type);
 
 	struct message *message = waiting_message;
 	waiting_message = NULL;

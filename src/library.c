@@ -2,6 +2,7 @@
 
 static int init_my_node_id() 
 {
+	nb_nodees = 0;
 	char *ip = get_server_ip();
 	if (!ip) {
 		perror("didn't get server ip");
@@ -98,6 +99,8 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 
 	start_server(server_port);
 	set_all_handlers();
+	
+	if (init_my_node_id()) return NULL;
 
 	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
@@ -111,7 +114,6 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	free_message(mess_joining);
 	free_message(dsm_info);
 
-	if (init_my_node_id()) return NULL;
 
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
 		PROT_READ | PROT_WRITE,
