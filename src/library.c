@@ -15,12 +15,9 @@ static int init_my_node_id()
 
 static void JOIN_DSM_handler(struct message *message) 
 {
-	size_t cr_sz;
-	void *core_info = get_core_info(&cr_sz);
 	size_t sz;
 
-	struct INFO_DSM_message * dsm_info = 
-		build_message(cr_sz, core_info, &sz);
+	struct INFO_DSM_message * dsm_info = build_message(&sz);
 
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(&node_list, message->sender.host, message->sender.port);
@@ -30,7 +27,7 @@ static void JOIN_DSM_handler(struct message *message)
 static void INFO_DSM_handler(struct message *message) 
 {
 	struct INFO_DSM_message *idsm = (struct INFO_DSM_message *)
-		message;
+										message;
 	nb_pages = idsm->nb_pages;
 
 	void *addr = idsm + 1;
@@ -40,8 +37,6 @@ static void INFO_DSM_handler(struct message *message)
 		add_to_nodes(&node_list ,n->host, n->port);
 		n++;	
 	}
-
-	init_core(nb_pages, n);
 }
 
 static void set_all_handlers(void) 
@@ -78,7 +73,7 @@ void *Init_DSM(size_t size, int port)
 		return NULL;
 	}
 
-	init_core(nb_pages, NULL);
+	init_core(nb_pages, &me);
 	init_nodes(&node_list);
 	return dsm;
 }
@@ -97,6 +92,7 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 
 	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
+	init_core(nb_pages, nd);
 
 	struct message *mess_joining = malloc(msg_sz);
 	mess_joining->message_type = JOIN_DSM;

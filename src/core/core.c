@@ -304,6 +304,4 @@ void clean_core()
 	free(core_info);
 	core_info = NULL;
 
-	deleteHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
-	deleteHandler(UNLOCK, NULL, handle_UNLOCK);
 }

@@ -9,14 +9,13 @@ struct INFO_DSM_message {
 	unsigned int nb_nodes;
 };
 
-static struct INFO_DSM_message *build_message(size_t cr_sz, void *core_info, 
-											  size_t *sz_) 
+static struct INFO_DSM_message *build_message(size_t *sz_) 
 {
     size_t ms_sz = sizeof(struct INFO_DSM_message);
 	size_t nd_sz = sizeof(struct node_id);
 	
 	// total size of the mess
-	size_t sz = ms_sz  + nb_nodees * nd_sz + cr_sz;
+	size_t sz = ms_sz  + nb_nodees * nd_sz;
 	*sz_ = sz;
 
 	struct INFO_DSM_message *dsm_info = (struct INFO_DSM_message *) malloc(sz);
@@ -31,9 +30,6 @@ static struct INFO_DSM_message *build_message(size_t cr_sz, void *core_info,
 		memcpy(addr, &nlist->node, nd_sz);
 		addr += nd_sz;
 	}
-
-	// copy the core info
-	memcpy(addr, core_info, cr_sz);
-	addr += cr_sz;
+	
 	return dsm_info;
 }
