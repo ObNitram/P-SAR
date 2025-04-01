@@ -16,7 +16,7 @@ static struct INFO_DSM_message *build_message(size_t *sz_)
 	size_t pg_ow = nb_pages * nd_sz;
 	
 	// total size of the mess
-	size_t sz = ms_sz  + nb_nodees * nd_sz;
+	size_t sz = ms_sz  + nb_nodees * nd_sz + pg_ow;
 	*sz_ = sz;
 
 	struct INFO_DSM_message *dsm_info = (struct INFO_DSM_message *) malloc(sz);
@@ -31,5 +31,10 @@ static struct INFO_DSM_message *build_message(size_t *sz_)
 		memcpy(addr, &nlist->node, nd_sz);
 		addr += nd_sz;
 	}
+
+	// copy th page owners
+	memcpy(addr, page_owners, pg_ow);
+	addr += pg_ow;
+
 	return dsm_info;
 }

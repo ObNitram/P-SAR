@@ -40,7 +40,6 @@ static void INFO_DSM_handler(struct message *message)
 	}
 
 	init_data_transfer(nb_pages, n);
-	n += nb_pages;
 }
 
 static void set_all_handlers(void) 

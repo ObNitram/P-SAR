@@ -286,7 +286,7 @@ void init_core(size_t nbpages, struct node_id *have_token)
 	//create structure sauf si dans page_info
 	core_info = malloc(sizeof(struct core_info) * nbpages);
 	for (int i = 0; i<nbpages; i++) {
-		node_copy(have_token, &core_info[i].have_token);
+		node_copy(&core_info[i].have_token, have_token);
 		core_info[i].write_request = EMPTY_NODE; // must change
 		sem_init(&core_info[i].mutex, 0, 1);
 		INIT_LIST_HEAD(&core_info[i].read_request.nlist);
