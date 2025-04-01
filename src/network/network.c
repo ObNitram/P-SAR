@@ -98,6 +98,12 @@ void server_thread()
 			return;
 		}
 
+		// wake up the main thread
+		pthread_mutex_lock(&mutex);
+		pthread_cond_signal(&cond);
+		pthread_mutex_unlock(&mutex);
+
+
 		// Accept an incoming connection.
 		struct sockaddr_storage client_addr;
 		socklen_t addr_size = sizeof(client_addr);
@@ -140,24 +146,26 @@ void server_thread()
 
 		int message_usage_counter = 0;
 
+
+		int diff = message_type_queues[message_type].foo != NULL;
+
+		if (message_type_queues[message->message_type].foo != NULL) {
+			message_usage_counter++;
+			message_type_queues[message->message_type].foo(message);
+		}
+		
 		// Is user waiting on thread
 		pthread_mutex_lock(&mutex);
-
+		
 		if (waiting_message_type == message_type) {
 			waiting_message = copy_message(message, message_size);
 			message_usage_counter++;
 			pthread_cond_signal(&cond);
 		}
-
+		
 		pthread_mutex_unlock(&mutex);
-
-		if (message_type_queues[message->message_type].foo != NULL) {
-			message_usage_counter++;
-			message_type_queues[message->message_type].foo(message);
-		} else {
-			free_message(message);
-		}
-
+		
+		free_message(message);
 		ensure_warning(message_usage_counter > 0,
 		               "Message type %lu receive but not used",
 		               message_type);
@@ -177,6 +185,10 @@ void start_server(const int port)
 
 	server_is_running = 1;
 	pthread_create(&server_thread_id, NULL, server_thread, NULL);
+	// wait until the server is started
+	pthread_mutex_lock(&mutex);
+	pthread_cond_wait(&cond, &mutex);
+	pthread_mutex_unlock(&mutex);
 }
 
 void stop_server()

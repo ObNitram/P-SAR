@@ -13,4 +13,10 @@ void unlock(size_t page_id, enum lock_type lock_type);
 
 void init_core(size_t nb_pages, struct node_id owner);
 
-void clean_core(void);
+extern void clean_core(void);
+
+extern int check_core_info_test(void);
+
+extern void *get_core_info(size_t *sz);
+
+extern int node_equal(struct node_id *node1, struct node_id *node2);

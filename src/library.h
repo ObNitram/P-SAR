@@ -3,17 +3,17 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <string.h>
+#include <assert.h>
+#include <stdio.h>
+#include <unistd.h>
+
 #include "network/network.h"
 #include "core/sigaction_handler.h"
 #include "core/core.h"
 #include "network/message.h"
-
-#define min(a, b) ((a) < (b) ? (a) : (b))
-#define max(a, b) ((a) > (b) ? (a) : (b))
-
-extern void *dsm;
-extern unsigned int nb_pages;
+#include "utils/utils.h"
+#include "utils/logger.h"
+#include "INFO_DSM_message.h"
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///
@@ -23,6 +23,8 @@ extern unsigned int nb_pages;
 /// @param port The port you use to communicate
 /// @return A pointer to the allocated shared memory region on success, NULL otherwise.
 void *Init_DSM(size_t size, int port);
+
+void free_DSM(void);
 
 
 /// @brief Adds a new node to the distributed shared memory system by connecting to an existing node.
