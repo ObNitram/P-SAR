@@ -18,5 +18,3 @@ extern void clean_core(void);
 extern int check_core_info_test(void);
 
 extern void *get_core_info(size_t *sz);
-
-extern int node_equal(struct node_id *node1, struct node_id *node2);

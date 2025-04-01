@@ -8,10 +8,6 @@ unsigned int nb_nodees;
 const struct node_id EMPTY_NODE = {"", -1};
 struct node_id me;
 
-int node_equal(struct node_id *node1, struct node_id *node2){
-	return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
-}
-
 void init_nodes(struct node_list *list) 
 {
 	INIT_LIST_HEAD(&list->nlist);
@@ -48,12 +44,11 @@ size_t get_page_index(void *adr)
     return index;
 }
 
-int node_copy(struct node_id *src, struct node_id *dest){
-	if (src == dest || src == NULL || dest == NULL) return 1;
+int node_equal(struct node_id *node1, struct node_id *node2){
+    return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
+}
 
-	dest->port = src->port;
-
-	strcpy(dest->host, src->host);
-
-	return 0;
+void node_copy(struct node_id* dst, struct node_id *src) {
+	memcpy(dst->host, src->host, INET6_ADDRSTRLEN * sizeof(char));
+	dst->port = src->port;
 }

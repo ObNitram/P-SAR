@@ -10,10 +10,26 @@
 #include "network/network.h"
 #include "core/sigaction_handler.h"
 #include "core/core.h"
+#include "core/data_transfer.h"
 #include "network/message.h"
 #include "utils/utils.h"
 #include "utils/logger.h"
 #include "INFO_DSM_message.h"
+
+/* 
+    if you want to setup the debug mode, you have to ' export LIBRARY_DEBUG '
+    to disable it just 'unset LIBRARY_DEBUG'
+*/
+#ifdef LIBRARY_DEBUG
+    #include "../utils/logger.h"
+    #define LOG_LIBRARY(fmt, ...) log_info(fmt, ##__VA_ARGS__)
+    #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) ensure_error(condition, fmr, ##__VA_ARGS__)
+    #define ENSURE_WARNING_LIBRARY(condition, fmt, ...) ensure_warning(condition, fmr, ##__VA_ARGS__)
+#else
+    #define LOG_LIBRARY(fmt, ...)
+    #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) 0
+    #define ENSURE_WARNING_LIBRARY(condition, fmt, ...) 0
+#endif
 
 /// @brief Initializes the distributed shared memory for the initial node with the specified size.
 ///

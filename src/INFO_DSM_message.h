@@ -13,6 +13,7 @@ static struct INFO_DSM_message *build_message(size_t *sz_)
 {
     size_t ms_sz = sizeof(struct INFO_DSM_message);
 	size_t nd_sz = sizeof(struct node_id);
+	size_t pg_ow = nb_pages * nd_sz;
 	
 	// total size of the mess
 	size_t sz = ms_sz  + nb_nodees * nd_sz;
@@ -30,6 +31,5 @@ static struct INFO_DSM_message *build_message(size_t *sz_)
 		memcpy(addr, &nlist->node, nd_sz);
 		addr += nd_sz;
 	}
-	
 	return dsm_info;
 }
