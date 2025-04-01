@@ -7,36 +7,37 @@ extern "C" {
 #include "utils/list.h"
 #include "utils/logger.h"
 #include "core/core.h"
+#include "core/data_transfer.h"
 }
 
 
-const char *addr_init = "127.0.0.1";
-const int init_port = 2451;
-const int joiner_port = 4321;
-const int nb_pages_ = 10;
-const int nb_nodes_ = 5;
+static const char *addr_init = "127.0.0.1";
+static const int init_port = 2451;
+static const int joiner_port = 4321;
+static const int nb_pages_ = 10;
+static const int nb_nodes_ = 5;
 
 // the final node_list of JOINER
-struct node_id node_list_joiner[5] = {
+static struct node_id node_list_joiner[5] = {
     {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port+17},
-    {.host = "127.0.0.1", .port =init_port+7},
-    {.host = "127.0.0.1", .port =init_port+5}, 
-    {.host = "127.0.0.1", .port =init_port+4}, 
+    {.host = "127.0.0.1", .port =init_port + 17},
+    {.host = "127.0.0.1", .port =init_port + 7},
+    {.host = "127.0.0.1", .port =init_port + 5}, 
+    {.host = "127.0.0.1", .port =init_port + 4}, 
 };
 
 // the final node_list of init
-struct node_id node_list_init[5] = {
+static struct node_id node_list_init[5] = {
     {.host = "127.0.0.1", .port =joiner_port}, 
-    {.host = "127.0.0.1", .port =init_port+4}, 
-    {.host = "127.0.0.1", .port =init_port+5}, 
-    {.host = "127.0.0.1", .port =init_port+7},
-    {.host = "127.0.0.1", .port =init_port+17},
+    {.host = "127.0.0.1", .port =init_port + 4}, 
+    {.host = "127.0.0.1", .port =init_port + 5}, 
+    {.host = "127.0.0.1", .port =init_port + 7},
+    {.host = "127.0.0.1", .port =init_port + 17},
 };
 
 #define SIZE_DSM 40960
 
-int check_node_list_equality(struct node_id nodes[]) {
+static int check_node_list_equality(struct node_id nodes[]) {
     struct node_list *n1 = &node_list;
     int found = 0;
     list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
@@ -87,6 +88,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 
         free_message(join_mess);
         stop_server();
+        clean_data_transfer();
         clean_core();
         free_nodes(&node_list);
         free_DSM();
@@ -111,6 +113,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         ASSERT_EQ(eq, 1);
 
         stop_server();
+        clean_data_transfer();
         clean_core();
         free_nodes(&node_list);
         free_DSM();
@@ -121,7 +124,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 
 
 TEST(addr_to_page, get_page_index) {
-    // memory init
+   // memory init
 	nb_pages = (SIZE_DSM + PAGE_SIZE - 1)/ PAGE_SIZE;
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
 		PROT_READ | PROT_WRITE,

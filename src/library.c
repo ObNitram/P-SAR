@@ -2,6 +2,7 @@
 
 static int init_my_node_id() 
 {
+	nb_nodees = 0;
 	char *ip = get_server_ip();
 	if (!ip) {
 		perror("didn't get server ip");
@@ -20,7 +21,7 @@ static void JOIN_DSM_handler(struct message *message)
 	size_t sz;
 
 	struct INFO_DSM_message * dsm_info = 
-		build_message(cr_sz, core_info, &sz);
+		build_message(cr_sz, core_info, (void *) page_owners, &sz);
 
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(&node_list, message->sender.host, message->sender.port);
@@ -40,6 +41,9 @@ static void INFO_DSM_handler(struct message *message)
 		add_to_nodes(&node_list ,n->host, n->port);
 		n++;	
 	}
+
+	init_data_transfer(nb_pages, n);
+	n += nb_pages;
 
 	init_core(nb_pages, n);
 }
@@ -79,6 +83,7 @@ void *Init_DSM(size_t size, int port)
 	}
 
 	init_core(nb_pages, NULL);
+	init_data_transfer(nb_pages, NULL);
 	init_nodes(&node_list);
 	return dsm;
 }
@@ -94,6 +99,8 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 
 	start_server(server_port);
 	set_all_handlers();
+	
+	if (init_my_node_id()) return NULL;
 
 	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
@@ -107,7 +114,6 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	free_message(mess_joining);
 	free_message(dsm_info);
 
-	if (init_my_node_id()) return NULL;
 
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
 		PROT_READ | PROT_WRITE,

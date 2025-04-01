@@ -282,10 +282,6 @@ void *get_core_info(size_t *sz) {
 	return core_info;
 }
 
-int node_equal(struct node_id *node1, struct node_id *node2){
-    return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
-}
-
 void handle_lock_read(struct page *page, struct node_id id_requester)
 {
 	// if (page->in_chainon == false) {
