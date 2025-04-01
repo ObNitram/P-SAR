@@ -4,6 +4,7 @@
 #include "../network/network.h"
 #include "../utils/list.h"
 #include <stdlib.h>
+#include <semaphore.h>
 
 // enum for local status of lock
 enum lock_status {
@@ -17,6 +18,7 @@ struct core_info {
 	struct node_id write_request;
 	struct node_list read_request;
 	struct node_id have_token;
+	sem_t mutex;
 };
 
 static struct core_info *core_info;
@@ -72,15 +74,22 @@ void ask_lock(size_t page_id, enum lock_type lock_type)
 {
 	struct core_info working_page = core_info[page_id];
 
+	sem_wait(&working_page.mutex);
+
 	//mode <- lock_type
 	working_page.mode = (enum lock_status)lock_type;
 
 	//send(<ASK_LOCK, i, mode>) to have_token
 	send_slsm_message(ASK_LOCK, &working_page.have_token, lock_type,
 			  page_id);
+	
+	sem_post(&working_page.mutex);
+
 	//wait(<GET_LOCK, j, mode>) from j
 	struct slsm_message *response =
 		(struct slsm_message *)wait_message(GET_LOCK, NULL);
+
+	sem_wait(&working_page.mutex);
 
 	switch (working_page.mode) {
 	//if mode = WRITE :
@@ -97,14 +106,15 @@ void ask_lock(size_t page_id, enum lock_type lock_type)
 		// log erreur should not be possible
 		break;
 	}
+
+	sem_post(&working_page.mutex);
 }
 
 void unlock(size_t page_id, enum lock_type lock_type)
 {
 	struct core_info working_page = core_info[page_id];
 
-	//mode <- NONE
-	working_page.mode = NONE;
+	sem_wait(&working_page.mutex);
 
 	switch (working_page.mode) {
 	//if mode = WRITE :
@@ -146,12 +156,19 @@ void unlock(size_t page_id, enum lock_type lock_type)
 		// error => should not append
 		break;
 	}
+
+	//mode <- NONE
+	working_page.mode = NONE;
+
+	sem_post(&working_page.mutex);
 }
 
 void handle_ASK_LOCK(struct message *message)
 {
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info working_page = core_info[request.page];
+
+	sem_wait(&working_page.mutex);
 
 	//if write_request != 0 :
 	if (&working_page.write_request != &EMPTY_NODE) {
@@ -229,18 +246,22 @@ void handle_ASK_LOCK(struct message *message)
 				     sizeof(struct slsm_message));
 		}
 	}
+
+	sem_post(&working_page.mutex);
 }
 
-void handle_GET_LOCK(struct message *message)
-{
-	struct slsm_message request = *((struct slsm_message *)message);
-	// DO NOTHING => because GET_LOCK is waiting by ask_lock function
-}
+// void handle_GET_LOCK(struct message *message)
+// {
+// 	struct slsm_message request = *((struct slsm_message *)message);
+// 	// DO NOTHING => because GET_LOCK is waiting by ask_lock function
+// }
 
 void handle_UNLOCK(struct message *message)
 {
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info working_page = core_info[request.page];
+
+	sem_wait(&working_page.mutex);
 
 	//read_request <- read_request / {j}
 	del_reader(&working_page, &request.initiator);
@@ -256,13 +277,18 @@ void handle_UNLOCK(struct message *message)
 		//write_request = 0
 		working_page.write_request = EMPTY_NODE;
 	}
+
+	sem_post(&working_page.mutex);
 }
 
-void init_core(size_t nbpages, void *pages_data)
+void init_core(size_t nbpages, struct node_id owner)
 {
 	//create structure sauf si dans page_info
 	core_info = malloc(sizeof(struct core_info) * nbpages);
 	for (int i = 0; i<nbpages; i++) {
+		core_info[i].have_token = owner;
+		core_info[i].write_request = EMPTY_NODE; // must change
+		sem_init(&core_info[i].mutex, 0, 1);
 		INIT_LIST_HEAD(&core_info[i].read_request.nlist);
 	}
 	core_size = nbpages;
@@ -277,6 +303,6 @@ void clean_core()
 	free(core_info);
 	core_info = NULL;
 
-	// deleteHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
-	// deleteHandler(UNLOCK, NULL, handle_UNLOCK);
+	deleteHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
+	deleteHandler(UNLOCK, NULL, handle_UNLOCK);
 }
