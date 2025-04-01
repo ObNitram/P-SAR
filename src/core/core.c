@@ -281,12 +281,12 @@ void handle_UNLOCK(struct message *message)
 	sem_post(&working_page.mutex);
 }
 
-void init_core(size_t nbpages, struct node_id owner)
+void init_core(size_t nbpages, struct node_id *have_token)
 {
 	//create structure sauf si dans page_info
 	core_info = malloc(sizeof(struct core_info) * nbpages);
 	for (int i = 0; i<nbpages; i++) {
-		core_info[i].have_token = owner;
+		node_copy(have_token, &core_info[i].have_token);
 		core_info[i].write_request = EMPTY_NODE; // must change
 		sem_init(&core_info[i].mutex, 0, 1);
 		INIT_LIST_HEAD(&core_info[i].read_request.nlist);
@@ -300,6 +300,7 @@ void init_core(size_t nbpages, struct node_id owner)
 
 void clean_core()
 {
+	// free all list and container before => this case append only on failure
 	free(core_info);
 	core_info = NULL;
 

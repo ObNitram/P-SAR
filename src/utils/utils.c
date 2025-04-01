@@ -5,6 +5,9 @@ unsigned int nb_pages;
 struct node_list node_list;
 unsigned int nb_nodees;
 
+const struct node_id EMPTY_NODE = {"", -1};
+struct node_id me;
+
 int node_equal(struct node_id *node1, struct node_id *node2){
 	return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
 }
@@ -43,4 +46,14 @@ size_t get_page_index(void *adr)
     size_t index = (addr - dsm_addr) / PAGE_SIZE;
 
     return index;
+}
+
+int node_copy(struct node_id *src, struct node_id *dest){
+	if (src == dest || src == NULL || dest == NULL) return 1;
+
+	dest->port = src->port;
+
+	strcpy(dest->host, src->host);
+
+	return 0;
 }

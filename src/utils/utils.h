@@ -7,7 +7,6 @@
 
 #define PAGE_SIZE 4096
 
-
 struct node_list {
 	struct node_id node;
 	struct list_head nlist;
@@ -17,6 +16,9 @@ extern struct node_list node_list;
 extern unsigned int nb_nodees;
 extern void *dsm;
 extern unsigned int nb_pages;
+
+extern const struct node_id EMPTY_NODE;
+extern struct node_id me;
 
 /// @brief Represents the type of message.
 /// @details This enum defines the available message types.
@@ -32,6 +34,8 @@ enum message_type {
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 int node_equal(struct node_id *node1, struct node_id *node2);
+
+int node_copy(struct node_id *src, struct node_id *dest);
 
 extern void init_nodes(struct node_list *list);
 
