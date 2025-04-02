@@ -1,9 +1,6 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include "../network/network.h"
+#include "../network/message.h"
 
 enum lock_type { READ, WRITE };
 
