@@ -39,7 +39,7 @@ static void ASK_PAGE_handler(struct message *message) {
     }
 }
 
-void sync_page(struct node_id *owner, size_t page_id){
+void sync_page(size_t page_id){
     size_t ms_sz =  sizeof(struct message) + sizeof(size_t) +
                     sizeof(struct node_id);
     struct message *msg = malloc(ms_sz);
@@ -47,7 +47,7 @@ void sync_page(struct node_id *owner, size_t page_id){
     size_t * index_p = (size_t *) (msg + 1);
     *index_p = page_id;
     node_copy((struct node_id *) (index_p + 1), &me);
-    send_message(owner, msg, ms_sz);
+    send_message(page_owners + page_id, msg, ms_sz);
     free_message(wait_message(RECV_PAGE, NULL));
     LOG_DATA_TRANS("synced page %zu\n", page_id);
     free_message(msg);

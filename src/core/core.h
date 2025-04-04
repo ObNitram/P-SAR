@@ -5,8 +5,8 @@
 #include <sys/types.h>
 #include "../network/network.h"
 #include "../utils/utils.h"
-#include "network/message.h"
-#include "utils/list.h"
+#include "../network/message.h"
+#include "../utils/list.h"
 
 extern const struct node_id EMPTY_NODE;
 extern struct node_id me;

@@ -1,16 +1,15 @@
 #include <assert.h>
 #include <signal.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
 #include "sigsegv.h"
-
-// The global variable are only used in the signal handler
-// to see if the SIGSEGV happened somewhere within our juridiction
-static size_t memsize;
-static void * mem;
+#include "../utils/utils.h"
+#include "../core/data_transfer.h"
+#include "../core/core.h"
 
 void lock_memory(void * addr, size_t size) {
     assert(addr != NULL);
@@ -31,9 +30,6 @@ void unlock_memory(void * addr, size_t size) {
 }
 
 static void sigsev_handler(int sig, siginfo_t *info, void *ucontext) {
-    // Check if the SIGSEGV is happening within our juridiction
-    assert((info->si_addr >= mem) && (info->si_addr < (mem + memsize)));
-
     long int page_size = sysconf(_SC_PAGESIZE); 
 
     // Thanks to `info` we can know at which memory adress the SIGSEGV happened
@@ -43,9 +39,8 @@ static void sigsev_handler(int sig, siginfo_t *info, void *ucontext) {
     // In part due to alignment
     void * page_addr = info->si_addr - ((size_t)info->si_addr % page_size);
 
-    // somehow get the page.
-    // ...
-    // We got the page!
+    size_t page_index = get_page_index(info->si_addr);
+    sync_page(page_index);
 
     // If an user write in a readlocked memory, it's not my problem
     // (I'll see later how to do it, if possible at all)
@@ -56,19 +51,9 @@ static void sigsev_handler(int sig, siginfo_t *info, void *ucontext) {
     // And the handler will be run once again... The circle of life. Beautiful.
 }
 
-void * init_sigsegv(size_t size) {
+void * init_sigsegv(void * dsm, size_t size) {
+    assert(dsm != NULL);
     assert(size != 0);
-    memsize = size;
-    long int page_size = sysconf(_SC_PAGESIZE);
-    if (page_size == -1) {
-        perror("sysconf");
-        exit(EXIT_FAILURE);
-    }
-
-    size_t nb_page = size / page_size;
-    if (size % page_size != 0) {
-        nb_page++;
-    }
 
     struct sigaction sigact;
     sigact.sa_sigaction = sigsev_handler;
@@ -79,27 +64,13 @@ void * init_sigsegv(size_t size) {
         exit(EXIT_FAILURE);
     }
 
-    // POSIX require that mprotect should be applied to memory obtained through mmap
-    // Linux doesn't care tho lmao (as long it's not memory used by the kernel obviously)
-    // Small problem tho, valgrind can't track mmap'd memory
-    // Why PROT_EXEC? To give the maximum amount of freedom to the memory.
-    // It will be locked down by mprotect later anyway.
-    mem = mmap(NULL, size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (mem == MAP_FAILED) {
-        perror("mmap");
-        exit(EXIT_FAILURE);
-    }
-
-    lock_memory(mem, nb_page * page_size);
-    return mem;
+    lock_memory(dsm, size);
+    return dsm;
 }
 
 void exit_sigsegv(void * addr, size_t size) {
     assert(addr != NULL);
     assert(size != 0);
-    // Dev only assert, check that we're removing the right data
-    assert(mem == addr);
-    assert(memsize == size);
 
     int exit_status = EXIT_SUCCESS;
 
@@ -110,13 +81,6 @@ void exit_sigsegv(void * addr, size_t size) {
         perror("sigaction unset");
         exit_status = EXIT_FAILURE;
     }
-
-    // no need to 'munprotect' or something like that with munmap
-    if (munmap(mem, size) == -1) {
-        perror("munmap");
-        exit_status = EXIT_FAILURE;
-    }
-
 
     assert(exit_status == EXIT_SUCCESS);
 }

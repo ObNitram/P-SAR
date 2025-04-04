@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <gtest/gtest.h>
 
 extern "C" {
@@ -90,7 +91,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
 
         sleep(1);
 
-        sync_page(page_owners, 0);
+        sync_page(0);
 
         log_info("synced page 0\n");
 

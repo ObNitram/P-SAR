@@ -20,7 +20,8 @@
 
 extern struct node_id *page_owners;
 
-extern void sync_page(struct node_id *owner, size_t index);
+// extern void sync_page(struct node_id *owner, size_t index);
+extern void sync_page(size_t index);
 
 extern void init_data_transfer(unsigned int nb_pages, struct node_id* owners);
 

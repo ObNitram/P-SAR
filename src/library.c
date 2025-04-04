@@ -1,4 +1,6 @@
 #include "library.h"
+#include "sigsegv_handler/sigsegv.h"
+#include "utils/utils.h"
 
 static int init_my_node_id() 
 {
@@ -48,9 +50,8 @@ static void INFO_DSM_handler(struct message *message)
 	init_core(nb_pages, n);
 }
 
-static void set_all_handlers(void) 
+static void set_all_handlers() 
 {
-	set_sigaction_handler();
 	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
 	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
 }
@@ -81,6 +82,7 @@ void *Init_DSM(size_t size, int port)
 		perror("map allocation failed");
 		return NULL;
 	}
+    init_sigsegv(dsm, size);
 
 	init_core(nb_pages, NULL);
 	init_data_transfer(nb_pages, NULL);
@@ -115,7 +117,8 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	free_message(dsm_info);
 
 
-	dsm = mmap(0, nb_pages * PAGE_SIZE, 
+    size_t size = nb_pages * PAGE_SIZE;
+	dsm = mmap(0, size, 
 		PROT_READ | PROT_WRITE,
 		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (dsm == MAP_FAILED) {
@@ -125,6 +128,7 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 		clean_core();
 		return NULL;
 	}
+    init_sigsegv(dsm, size);
 	return dsm;
 }
 
