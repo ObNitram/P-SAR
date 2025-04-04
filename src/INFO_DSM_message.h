@@ -34,7 +34,6 @@ static struct INFO_DSM_message *build_message(size_t *sz_)
 
 	// copy th page owners
 	memcpy(addr, page_owners, pg_ow);
-	addr += pg_ow;
 
 	return dsm_info;
 }

@@ -66,7 +66,7 @@ static inline void remove_request(struct core_info *working_page,
 static inline struct request *find_last_writer(struct core_info *working_page)
 {
 	struct request *last_writer;
-	list_for_each_entry(last_writer, &working_page->request, next) {
+	list_for_each_entry_reverse(last_writer, &working_page->request, next) {
 		if (last_writer->mode == WRITING)
 			return last_writer;
 	}
@@ -87,22 +87,22 @@ static inline void send_slsm_message(enum message_type msgt,
 		     sizeof(struct slsm_message));
 }
 
-void ask_lock(size_t page_id, enum lock_type mode)
+void ask_lock(size_t page_id, enum lock_type request_mode)
 {
 	struct core_info *working_page = core_info + page_id;
 
 	pthread_mutex_lock(&working_page->mutex);
 
 	//mode <- lock_type
-	working_page->mode = (enum lock_status)mode;
+	working_page->mode = (enum lock_status)request_mode;
 	//if have_token = i :
 	if (node_equal(&working_page->have_token, &me)) {
 		//if request != {} V mode = READ:
-		if (!list_empty(&working_page->request) || mode == READ) {
+		if (!list_empty(&working_page->request) || request_mode == READ) {
 			//request <- request U {i}
-			add_request(working_page, &me, mode);
+			add_request(working_page, &me, request_mode);
 			//if mode = WRITE :
-			if (mode == WRITE) {
+			if (request_mode == WRITE) {
 				pthread_mutex_unlock(&working_page->mutex);
 				//wait first_request = (WRITE, i)
 				sem_wait(&working_page->write_auto_lock);
@@ -111,7 +111,7 @@ void ask_lock(size_t page_id, enum lock_type mode)
 		}
 	} else {
 		//send(<ASK_LOCK, i, mode>) to have_token
-		send_slsm_message(ASK_LOCK, &working_page->have_token, mode,
+		send_slsm_message(ASK_LOCK, &working_page->have_token, request_mode,
 				  page_id);
 
 		pthread_mutex_unlock(&working_page->mutex);
@@ -121,7 +121,7 @@ void ask_lock(size_t page_id, enum lock_type mode)
 
 		pthread_mutex_lock(&working_page->mutex);
 
-		switch (mode) {
+		switch (request_mode) {
 		//if mode = WRITE :
 		case WRITE:
 			//have_token <- i
