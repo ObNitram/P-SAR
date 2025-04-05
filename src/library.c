@@ -26,6 +26,9 @@ static void JOIN_DSM_handler(struct message *message)
 	while (!in_dsm) 
 		pthread_cond_wait(&cond, &mtx);
 	pthread_mutex_unlock(&mtx);
+
+	request_CS();
+
 	size_t sz;
 
 	struct INFO_DSM_message * dsm_info = build_message(&sz);
@@ -33,6 +36,8 @@ static void JOIN_DSM_handler(struct message *message)
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(&node_list, message->sender.host, message->sender.port);
 	free_message((struct message *)dsm_info);
+
+	release_CS();
 }
 
 static void INFO_DSM_handler(struct message *message) 
@@ -89,6 +94,7 @@ static inline void clear_internal_data() {
 void *Init_DSM(size_t size, int port)
 {
 	init_internal_data(1);
+	init_CS(&EMPTY_NODE, 1);
 	start_server(port);
 	set_all_handlers();
 	
@@ -130,6 +136,7 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
 	init_core(nb_pages, nd);
+	init_CS(nd, 0);
 
 	struct message *mess_joining = malloc(msg_sz);
 	mess_joining->message_type = JOIN_DSM;

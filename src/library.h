@@ -16,6 +16,7 @@
 #include "utils/utils.h"
 #include "utils/logger.h"
 #include "INFO_DSM_message.h"
+#include "Naimi_Trehel.h"
 
 /* 
     if you want to setup the debug mode, you have to ' export LIBRARY_DEBUG '
