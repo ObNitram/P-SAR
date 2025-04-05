@@ -1,5 +1,9 @@
 #include "library.h"
 
+static bool in_dsm;
+static pthread_mutex_t mtx;
+static pthread_cond_t cond;
+
 static int init_my_node_id() 
 {
 	nb_nodees = 0;
@@ -16,6 +20,10 @@ static int init_my_node_id()
 
 static void JOIN_DSM_handler(struct message *message) 
 {
+	pthread_mutex_lock(&mtx);
+	while (!in_dsm) 
+		pthread_cond_wait(&cond, &mtx);
+	pthread_mutex_unlock(&mtx);
 	size_t sz;
 
 	struct INFO_DSM_message * dsm_info = build_message(&sz);
@@ -40,6 +48,12 @@ static void INFO_DSM_handler(struct message *message)
 	}
 
 	init_data_transfer(nb_pages, n);
+
+	pthread_mutex_lock(&mtx);
+	in_dsm = 1;
+	pthread_cond_signal(&cond);
+	pthread_mutex_unlock(&mtx);
+
 }
 
 static void set_all_handlers(void) 
@@ -58,8 +72,20 @@ static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (
 	}
 }
 
+static inline void init_internal_data(bool in_dsm_init) {
+	in_dsm = in_dsm_init;
+	pthread_mutex_init(&mtx, NULL);
+	pthread_cond_init(&cond, NULL);
+}
+
+static inline void clear_internal_data() {
+	pthread_mutex_destroy(&mtx);
+	pthread_cond_destroy(&cond);
+}
+
 void *Init_DSM(size_t size, int port)
 {
+	init_internal_data(1);
 	start_server(port);
 	set_all_handlers();
 	
@@ -85,10 +111,12 @@ void *Init_DSM(size_t size, int port)
 void free_DSM() 
 {
 	munmap(dsm, nb_pages * PAGE_SIZE);
+	clear_internal_data();
 }
 
 void *join_DSM(const char *host, int connect_port, int server_port)
 {
+	init_internal_data(0);
 	size_t msg_sz = sizeof(struct message);
 
 	start_server(server_port);
