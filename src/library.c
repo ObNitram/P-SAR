@@ -1,5 +1,6 @@
 #include "library.h"
 
+// 1 if we have joined the DSM else 0
 static bool in_dsm;
 static pthread_mutex_t mtx;
 static pthread_cond_t cond;
@@ -20,6 +21,7 @@ static int init_my_node_id()
 
 static void JOIN_DSM_handler(struct message *message) 
 {
+	// wait until we are in the DSM
 	pthread_mutex_lock(&mtx);
 	while (!in_dsm) 
 		pthread_cond_wait(&cond, &mtx);
@@ -49,6 +51,7 @@ static void INFO_DSM_handler(struct message *message)
 
 	init_data_transfer(nb_pages, n);
 
+	// we joined the DSM notify if there is some waiting requests
 	pthread_mutex_lock(&mtx);
 	in_dsm = 1;
 	pthread_cond_signal(&cond);
