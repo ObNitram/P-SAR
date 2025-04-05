@@ -12,6 +12,7 @@ struct node_list {
 	struct list_head nlist;
 };
 
+// maybe these global vars should be protected by a mutex ?
 extern struct node_list node_list;
 extern unsigned int nb_nodees;
 extern void *dsm;
@@ -27,7 +28,8 @@ enum message_type {
     GET_LOCK,
     UNLOCK,
     JOIN_DSM, 
-    INFO_DSM, 
+    INFO_DSM,
+    NEW_NODE, 
     ASK_PAGE,
     RECV_PAGE, 
     REQUEST_CS,
@@ -48,4 +50,6 @@ extern size_t get_page_index(void *adr);
 
 extern int node_equal(const struct node_id *node1, const struct node_id *node2);
 
-extern void node_copy(struct node_id* dst, const struct node_id *src);
+extern void node_copy(struct node_id *dst, const struct node_id *src);
+
+extern void broadcast_message(struct message *msg, size_t size);
