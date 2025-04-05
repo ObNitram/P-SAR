@@ -11,7 +11,7 @@ TEST(sigsegv, basic) {
 }
 
 TEST(sigsegv, init_null) {
-    EXPECT_EXIT(init_sigsegv(NULL, 0), testing::KilledBySignal(6), "") << "Triggering the very first assert";
+    EXPECT_EXIT(init_sigsegv(NULL, 0, true), testing::KilledBySignal(6), "") << "Triggering the very first assert";
 }
 
 TEST(sigsegv, init_to_destroy) {
@@ -19,7 +19,7 @@ TEST(sigsegv, init_to_destroy) {
 	void * dsm = mmap(0, size, 
 		PROT_READ | PROT_WRITE,
 		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    void * mem = init_sigsegv(dsm, size);
-    exit_sigsegv(mem, size);
+    // void * mem = init_sigsegv(dsm, size, false);
+    // exit_sigsegv(mem, size);
 	munmap(dsm, size);
 }

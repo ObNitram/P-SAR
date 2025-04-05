@@ -27,7 +27,8 @@ enum message_type {
     JOIN_DSM, 
     INFO_DSM, 
     ASK_PAGE,
-    RECV_PAGE
+    RECV_PAGE,
+    INVALIDATION
 };
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
@@ -45,3 +46,5 @@ extern size_t get_page_index(void *adr);
 extern int node_equal(struct node_id *node1, struct node_id *node2);
 
 extern void node_copy(struct node_id* dst, struct node_id *src);
+
+void broadcast_message(struct message * msg, size_t size_t);

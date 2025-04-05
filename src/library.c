@@ -1,6 +1,7 @@
 #include "library.h"
 #include "sigsegv_handler/sigsegv.h"
 #include "utils/utils.h"
+#include <stdbool.h>
 
 static int init_my_node_id() 
 {
@@ -82,7 +83,7 @@ void *Init_DSM(size_t size, int port)
 		perror("map allocation failed");
 		return NULL;
 	}
-    init_sigsegv(dsm, size);
+    init_sigsegv(dsm, size, true);
 
 	init_core(nb_pages, NULL);
 	init_data_transfer(nb_pages, NULL);
@@ -128,7 +129,7 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 		clean_core();
 		return NULL;
 	}
-    init_sigsegv(dsm, size);
+    init_sigsegv(dsm, size, false);
 	return dsm;
 }
 
