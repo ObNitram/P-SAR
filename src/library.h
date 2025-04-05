@@ -25,8 +25,8 @@
 #ifdef LIBRARY_DEBUG
     #include "../utils/logger.h"
     #define LOG_LIBRARY(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-    #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) ensure_error(condition, fmr, ##__VA_ARGS__)
-    #define ENSURE_WARNING_LIBRARY(condition, fmt, ...) ensure_warning(condition, fmr, ##__VA_ARGS__)
+    #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) ensure_error(condition, fmt, ##__VA_ARGS__)
+    #define ENSURE_WARNING_LIBRARY(condition, fmt, ...) ensure_warning(condition, fmt, ##__VA_ARGS__)
 #else
     #define LOG_LIBRARY(fmt, ...)
     #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) 0

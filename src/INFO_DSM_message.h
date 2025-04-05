@@ -23,13 +23,13 @@ static struct INFO_DSM_message *build_message(size_t *sz_)
 	dsm_info->header.message_type = INFO_DSM;
 	dsm_info->nb_pages = nb_pages;
 	dsm_info->nb_nodes = nb_nodees;
-	void *addr = dsm_info + 1;
+	struct node_id *addr = (struct node_id *) (dsm_info + 1);
 
 	// copy of all node_id
 	struct node_list *nlist = &node_list;
 	list_for_each_entry_continue(nlist, &node_list.nlist, nlist) {
 		memcpy(addr, &nlist->node, nd_sz);
-		addr += nd_sz;
+		addr++;
 	}
 
 	// copy th page owners

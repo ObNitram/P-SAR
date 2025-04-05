@@ -33,6 +33,6 @@ extern void request_CS();
 
 extern void release_CS();
 
-extern void init_CS(struct node_id *father, bool token);
+extern void init_CS(const struct node_id *father, bool token);
 
 extern void clear_CS();
