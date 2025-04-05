@@ -1,5 +1,10 @@
 #include "library.h"
 
+// 1 if we have joined the DSM else 0
+static bool in_dsm;
+static pthread_mutex_t mtx;
+static pthread_cond_t cond;
+
 static int init_my_node_id() 
 {
 	nb_nodees = 0;
@@ -16,6 +21,14 @@ static int init_my_node_id()
 
 static void JOIN_DSM_handler(struct message *message) 
 {
+	// wait until we are in the DSM
+	pthread_mutex_lock(&mtx);
+	while (!in_dsm) 
+		pthread_cond_wait(&cond, &mtx);
+	pthread_mutex_unlock(&mtx);
+
+	request_CS();
+
 	size_t sz;
 
 	struct INFO_DSM_message * dsm_info = build_message(&sz);
@@ -23,6 +36,8 @@ static void JOIN_DSM_handler(struct message *message)
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(&node_list, message->sender.host, message->sender.port);
 	free_message((struct message *)dsm_info);
+
+	release_CS();
 }
 
 static void INFO_DSM_handler(struct message *message) 
@@ -40,6 +55,13 @@ static void INFO_DSM_handler(struct message *message)
 	}
 
 	init_data_transfer(nb_pages, n);
+
+	// we joined the DSM notify if there is some waiting requests
+	pthread_mutex_lock(&mtx);
+	in_dsm = 1;
+	pthread_cond_signal(&cond);
+	pthread_mutex_unlock(&mtx);
+
 }
 
 static void set_all_handlers(void) 
@@ -58,8 +80,21 @@ static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (
 	}
 }
 
+static inline void init_internal_data(bool in_dsm_init) {
+	in_dsm = in_dsm_init;
+	pthread_mutex_init(&mtx, NULL);
+	pthread_cond_init(&cond, NULL);
+}
+
+static inline void clear_internal_data() {
+	pthread_mutex_destroy(&mtx);
+	pthread_cond_destroy(&cond);
+}
+
 void *Init_DSM(size_t size, int port)
 {
+	init_internal_data(1);
+	init_CS(&EMPTY_NODE, 1);
 	start_server(port);
 	set_all_handlers();
 	
@@ -85,10 +120,12 @@ void *Init_DSM(size_t size, int port)
 void free_DSM() 
 {
 	munmap(dsm, nb_pages * PAGE_SIZE);
+	clear_internal_data();
 }
 
 void *join_DSM(const char *host, int connect_port, int server_port)
 {
+	init_internal_data(0);
 	size_t msg_sz = sizeof(struct message);
 
 	start_server(server_port);
@@ -99,6 +136,7 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
 	init_core(nb_pages, nd);
+	init_CS(nd, 0);
 
 	struct message *mess_joining = malloc(msg_sz);
 	mess_joining->message_type = JOIN_DSM;

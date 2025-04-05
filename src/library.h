@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "network/network.h"
 #include "core/sigaction_handler.h"
@@ -15,6 +16,7 @@
 #include "utils/utils.h"
 #include "utils/logger.h"
 #include "INFO_DSM_message.h"
+#include "Naimi_Trehel.h"
 
 /* 
     if you want to setup the debug mode, you have to ' export LIBRARY_DEBUG '
