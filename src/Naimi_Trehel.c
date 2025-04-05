@@ -5,7 +5,7 @@ bool requesting;
 struct node_id father;
 struct node_id next;
 // mutex to manage data race 
-pthread_mutex_t mtx;
+static pthread_mutex_t mtx;
 
 static void send_request_to_father(struct node_id *requester) {
     size_t sz = sizeof(struct message) + sizeof(struct node_id);
