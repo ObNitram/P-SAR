@@ -64,4 +64,6 @@ void init_CS(struct node_id *father_init, bool token_init) {
     requesting = 0;
     node_copy(&father, father_init);
     node_copy(&next, &EMPTY_NODE);
+    addHandler(REQUEST_CS, NULL, REQUEST_CS_handler);
+    addHandler(GET_CS, NULL, GET_CS_handler);
 }
