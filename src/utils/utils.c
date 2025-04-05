@@ -44,11 +44,11 @@ size_t get_page_index(void *adr)
     return index;
 }
 
-int node_equal(struct node_id *node1, struct node_id *node2){
+int node_equal(const struct node_id *node1, const struct node_id *node2){
     return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
 }
 
-void node_copy(struct node_id* dst, struct node_id *src) {
+void node_copy(struct node_id* dst, const struct node_id *src) {
 	memcpy(dst->host, src->host, INET6_ADDRSTRLEN * sizeof(char));
 	dst->port = src->port;
 }
