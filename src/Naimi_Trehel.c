@@ -71,7 +71,7 @@ void release_CS() {
     pthread_mutex_unlock(&mtx);
 }
 
-void init_CS(struct node_id *father_init, bool token_init) {
+void init_CS(const struct node_id *father_init, bool token_init) {
     token = token_init;
     requesting = 0;
     pthread_mutex_init(&mtx, NULL);
