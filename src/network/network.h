@@ -78,13 +78,3 @@ struct message *wait_message(size_t message_type, struct node_id *sender);
 void addHandler(size_t message_type,
                 struct node_id *sender,
                 void callBack(struct message *message));
-
-/// @brief Deletes a handler for messages of a specific type.
-/// @details Unregisters a previously added callback handler for a given message type.
-///          If the sender parameter is NULL, the handler will be removed for messages from any sender.
-/// @param message_type The type of message for which the handler is to be deleted.
-/// @param sender Pointer to the node identifier of the sender to filter on, or NULL for any sender.
-/// @param callBack The callback function to be removed.
-void deleteHandler(size_t message_type,
-                   struct node_id *sender,
-                   void callBack(struct message *message));

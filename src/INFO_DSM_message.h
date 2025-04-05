@@ -9,15 +9,14 @@ struct INFO_DSM_message {
 	unsigned int nb_nodes;
 };
 
-static struct INFO_DSM_message *build_message(size_t cr_sz, void *core_info, 
-											  void *page_owners, size_t *sz_) 
+static struct INFO_DSM_message *build_message(size_t *sz_) 
 {
     size_t ms_sz = sizeof(struct INFO_DSM_message);
 	size_t nd_sz = sizeof(struct node_id);
 	size_t pg_ow = nb_pages * nd_sz;
 	
 	// total size of the mess
-	size_t sz = ms_sz  + nb_nodees * nd_sz + cr_sz + pg_ow;
+	size_t sz = ms_sz  + nb_nodees * nd_sz + pg_ow;
 	*sz_ = sz;
 
 	struct INFO_DSM_message *dsm_info = (struct INFO_DSM_message *) malloc(sz);
@@ -35,10 +34,6 @@ static struct INFO_DSM_message *build_message(size_t cr_sz, void *core_info,
 
 	// copy th page owners
 	memcpy(addr, page_owners, pg_ow);
-	addr += pg_ow;
-
-	// copy the core info
-	memcpy(addr, core_info, cr_sz);
 
 	return dsm_info;
 }
