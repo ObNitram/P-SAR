@@ -48,7 +48,10 @@ static void GET_CS_handler(struct message *message) {
 void request_CS() {
     pthread_mutex_lock(&mtx);
     requesting = 1;
-    if (token == 1) return;
+    if (token == 1) {
+        pthread_mutex_unlock(&mtx);
+        return;
+    }
     if (!node_equal(&father, &EMPTY_NODE)) {
         send_request_to_father(&me);
     }
@@ -66,7 +69,6 @@ void release_CS() {
         node_copy(&next, &EMPTY_NODE);
     }
     pthread_mutex_unlock(&mtx);
-
 }
 
 void init_CS(struct node_id *father_init, bool token_init) {
