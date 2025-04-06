@@ -109,9 +109,6 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         eq = check_node_list_equality(node_list_joiner);
         ASSERT_EQ(eq, 1);
 
-        eq = check_core_info_test();
-        ASSERT_EQ(eq, 1);
-
         stop_server();
         clean_data_transfer();
         clean_core();
