@@ -11,6 +11,7 @@
 
 #include "sigsegv.h"
 #include "../utils/utils.h"
+#include "../core/core.h"
 #include "../core/data_transfer.h"
 
 // perm: PROT_NONE, PROT_EXEC, PROT_READ, PROT_WRITE
@@ -21,6 +22,15 @@ void memory_protect(size_t index, int perm) {
     }
 }
 
+void send_invalidation(size_t page_index) {
+    size_t msg_size = sizeof(struct message) + sizeof(size_t);
+    struct message * msg = malloc(msg_size);
+    msg->message_type = INVALIDATION;
+    size_t * page_id = (size_t *)(msg + 1);
+    *page_id = page_index;
+    broadcast_message(msg, msg_size);
+    free_message(msg);
+}
 
 // TODO Check if we got the correct perm for the action that was attempted
 static void sigsev_handler(int sig, siginfo_t * info, void * ucontext) {
@@ -30,41 +40,51 @@ static void sigsev_handler(int sig, siginfo_t * info, void * ucontext) {
     // Which shouldn't be a problem I think?
     // In part due to alignment
     void * page_addr = info->si_addr - ((size_t)info->si_addr % PAGE_SIZE);
-    // int err = ((ucontext_t *)ucontext)->uc_mcontext.gregs[REG_ERR];
-    // if (err & 0x2) {
-    //     printf("WRITE \n");
+    int err = ((ucontext_t *)ucontext)->uc_mcontext.gregs[REG_ERR];
+    bool curr_reading = false;
+    bool curr_writing = false;
+    if (err & 0x2) {
+        curr_writing = true;
+    } else if (err & 0x4) {
+        curr_writing = true;
+    }
     // } else if (err & 16) {
     //     printf("EXEC \n");
-    // } else {
-    //     printf("READ \n");
     // }
 
     size_t page_index = get_page_index(info->si_addr);
     sync_page(page_index);
 
-    // If an user write in a readlocked memory, it's not my problem
-    // (I'll see later how to do it, if possible at all)
-    memory_protect(page_index, PROT_EXEC | PROT_WRITE | PROT_READ);
+
+    int prot = PROT_EXEC | PROT_READ;
+
+    enum lock_status lock_status = get_lock_status(page_index);
+    assert(lock_status == NONE); // You're not allowed to do that you criminal, how dare you
+    if (lock_status == READING) {
+        assert(curr_writing == false); // You don't have the right do to this my dude
+    } else if (curr_writing && lock_status == WRITING) {
+        // Do not put the write permission too soon.
+        // We want to know if the user will write and only then send the invalidation
+        // And if we put the write permission when the first read happen, we'll just never know if a read happen
+        // It's a mystery~
+        prot |= PROT_WRITE;
+    }
+    memory_protect(page_index, prot);
 
     // If, for some reason (like another signal?) the handler exit without unlocking the memory
     // No problem! The read/write will try again, which will trigger SIGSEGV again
     // And the handler will be run once again... The circle of life. Beautiful.
 
-
-    size_t msg_size = sizeof(struct message) + sizeof(size_t);
-    struct message * msg = malloc(msg_size);
-    msg->message_type = INVALIDATION;
-    size_t * page_id = (size_t *)(msg + 1);
-    *page_id = page_index;
-
-    broadcast_message(msg, msg_size);
-    free_message(msg);
+    if (curr_writing && lock_status == WRITING) {
+        send_invalidation(page_index);
+    }
 }
 
 
-static void INVALIDATION_handler(struct message *message) {
-    size_t *page_id = (size_t *) (message + 1);
+static void INVALIDATION_handler(struct message *msg) {
+    size_t *page_id = (size_t *) (msg + 1);
     memory_protect(*page_id, PROT_NONE);
+    node_copy(page_owners + *page_id, &msg->sender);
 }
 
 void * init_sigsegv(void * dsm, size_t size, bool is_owner) {
@@ -93,10 +113,7 @@ void * init_sigsegv(void * dsm, size_t size, bool is_owner) {
     return dsm;
 }
 
-void exit_sigsegv(void * addr, size_t size) {
-    assert(addr != NULL);
-    assert(size != 0);
-
+void exit_sigsegv() {
     int exit_status = EXIT_SUCCESS;
 
     struct sigaction sigact;

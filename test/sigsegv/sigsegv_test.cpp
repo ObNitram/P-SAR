@@ -6,10 +6,6 @@ extern "C" {
 #include "sigsegv_handler/sigsegv.h"
 }
 
-TEST(sigsegv, basic) {
-    EXPECT_EQ(4, 2+2) << "simple as that";
-}
-
 TEST(sigsegv, init_null) {
     EXPECT_EXIT(init_sigsegv(NULL, 0, true), testing::KilledBySignal(6), "") << "Triggering the very first assert";
 }

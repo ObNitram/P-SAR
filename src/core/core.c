@@ -7,13 +7,6 @@
 #include <semaphore.h>
 #include <pthread.h>
 
-// enum for local status of lock
-enum lock_status {
-	READING = READ,
-	WRITING = WRITE,
-	NONE,
-};
-
 struct request {
 	enum lock_type mode;
 	struct node_id who;
@@ -354,4 +347,9 @@ void clean_core()
 	}
 	free(core_info);
 	core_info = NULL;
+}
+
+enum lock_status get_lock_status(size_t page_id)
+{
+    return core_info[page_id].mode;
 }
