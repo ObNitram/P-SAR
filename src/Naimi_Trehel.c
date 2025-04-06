@@ -19,7 +19,7 @@ static void send_request_to_father(struct node_id *requester) {
 
 static void send_token(struct node_id *dst) {
     struct message msg = {.message_type = GET_CS};
-    send_message(&next, &msg, sizeof(struct message));
+    send_message(dst, &msg, sizeof(struct message));
 }
 
 static void REQUEST_CS_handler(struct message *message) {

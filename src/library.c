@@ -104,8 +104,8 @@ static inline void clear_internal_data(void) {
 void *Init_DSM(size_t size, int port)
 {
 	init_internal_data(1);
-	init_CS(&EMPTY_NODE, 1);
 	start_server(port);
+	init_CS(&EMPTY_NODE, 1);
 	set_all_handlers();
 	
 	// init internal data
