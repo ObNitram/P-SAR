@@ -53,27 +53,24 @@ void sort(int *tab, const size_t tab_size)
 	quick_sort(tab, 0, tab_size - 1);
 }
 
-void worker_node(size_t node_id, int server_port, size_t number_of_node)
+void worker_node(size_t node_id, int server_port, size_t number_of_node, size_t tab_size)
 {
 	log_info("Worker node %ld", node_id);
 
-	// const size_t size = page_size * number_of_node;
-	// int *tab = join_DSM("localhost", server_port, server_port + node_id);
-	//
-	// lock_read(tab, size);
-	// for (int i = 0; i < 24; i++) {
-	// 	printf("%d\n", tab[i]);
-	// }
-	// printf("\n");
-	// unlock_read(tab, size);
-	//
-	// int *node_tab = tab + node_id * page_size;
-	//
-	// lock_write(node_tab, page_size);
-	// sort(node_tab, page_size);
-	// unlock_write(node_tab, page_size);
-	//
-	// free_DSM();
+
+	int *tab = join_DSM("localhost", server_port, server_port + node_id);
+
+	size_t raw_tab_size = tab_size * sizeof(int);
+	size_t raw_segment_size = raw_tab_size / number_of_node;
+
+	size_t segment_size = tab_size / number_of_node;
+	int *node_tab = tab + (node_id - 1) * segment_size;
+
+	lock_write(tab, raw_segment_size);
+	sort(node_tab, raw_segment_size);
+	unlock_write(tab, raw_segment_size);
+
+	free_DSM();
 }
 
 
@@ -107,33 +104,31 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	size_t page_size = sysconf(_SC_PAGESIZE);
-	log_debug("Page size: %ld", page_size);
+	const size_t tab_size = 1000;
+	const size_t row_size = tab_size * sizeof(int);
 
 
-	// Initialize the DSM with the size of the page multiplied by the number of nodes
-	const size_t size = page_size * 100;
 
 	// Allocate and initialize the DSM
 	log_info("Initializing DSM");
-	int *tab = Init_DSM(size, port);
+	int *tab = Init_DSM(row_size, port);
 	log_info("DSM initialized");
 
 
 	log_info("Filling DSM with random values");
-	lock_write(tab, size);
-	for (int i = 0; i < size; i++) {
+	lock_write(tab, row_size);
+	for (int i = 0; i < tab_size; i++) {
 		tab[i] = rand();
 	}
-	unlock_write(tab, size);
+	unlock_write(tab, row_size);
 
 	log_info("Printing initial values");
-	lock_read(tab, size);
+	lock_read(tab, row_size);
 	for (int i = 0; i < 24; i++) {
 		printf("%d\n", tab[i]);
 	}
 	printf("\n");
-	unlock_read(tab, size);
+	unlock_read(tab, row_size);
 
 	log_info("Starting worker nodes...");
 
@@ -144,7 +139,7 @@ int main(int argc, char **argv)
 			exit(EXIT_FAILURE);
 		}
 		if (sun == 0) {
-			worker_node(node_id, port, number_of_node);
+			worker_node(node_id, port, number_of_node, tab_size);
 			return 0;
 		}
 	}
@@ -154,12 +149,13 @@ int main(int argc, char **argv)
 	}
 
 
-	lock_read(tab, size);
+	lock_read(tab, row_size);
 	for (int i = 0; i < 24; i++) {
 		printf("%d\n", tab[i]);
 	}
 	printf("\n");
-	unlock_read(tab, size);
+	unlock_read(tab, row_size);
 
 	free_DSM();
+	log_info("DSM freed");
 }
