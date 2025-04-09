@@ -27,6 +27,6 @@ jobs:
         run: ./build/main-psar
 
       - name: run gtest
-        run: timeout 2m ./build/test-psar
+        run: timeout 2m valgrind --leak-check=full --show-leak-kinds=all ./build/test-psar
 
 
