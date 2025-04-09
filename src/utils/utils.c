@@ -18,7 +18,7 @@ struct node_list *add_to_nodes(struct node_list *list, const char *host,
 							   const int port) 
 {
 	struct node_list *ndlst = malloc(sizeof(struct node_list));
-	size_t sz = min(strlen(host),INET6_ADDRSTRLEN) ;
+	size_t sz = min(strlen(host),INET6_ADDRSTRLEN) + 1;
 	memcpy(ndlst->node.host, host, sizeof(char) * sz);
 	ndlst->node.port = port;
 	list_add(&ndlst->nlist, &list->nlist);
