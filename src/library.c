@@ -53,6 +53,7 @@ static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (
 {
 	size_t start_index = get_page_index(adr);
 	size_t end_index = get_page_index(adr + s);
+	LOG_LIBRARY("start => %zu end => %zu", start_index, end_index);
 	for (size_t page_id = start_index; page_id <= end_index; page_id++) {
 		exc_func(page_id, lock_type);
 	}
