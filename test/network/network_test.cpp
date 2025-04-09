@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <gtest/gtest.h>
 
 extern "C" {
@@ -98,9 +99,12 @@ void callBack2(struct message *mes)
 
 TEST(network, basic_receive2)
 {
-	init_logger(stderr);
+	init_logger(stdout);
+	log_info("started test");
+
 	counter = 0;
 	start_server(5555);
+	log_info("server start");
 
 	addHandler(2,NULL, callBack2);
 
@@ -114,9 +118,13 @@ TEST(network, basic_receive2)
 
 	send_message(&dest, (struct message *)&mes, sizeof(mes));
 
+	log_info("message sending");
+
 	sleep(1);
 
 	stop_server();
+
+	log_info("stopped test");
 
 	EXPECT_EQ(counter, 1);
 }
