@@ -67,7 +67,7 @@ void worker_node(size_t node_id, int server_port, size_t number_of_node, size_t 
 	int *node_tab = tab + (node_id - 1) * segment_size;
 
 	lock_write(tab, raw_segment_size);
-	sort(node_tab, raw_segment_size);
+	sort(node_tab, segment_size);
 	unlock_write(tab, raw_segment_size);
 
 	free_DSM();
