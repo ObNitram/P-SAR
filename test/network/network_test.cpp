@@ -147,9 +147,12 @@ void *lunch_message(void *)
 
 TEST(network, wait_for_message)
 {
-	init_logger(stderr);
+	init_logger(stdout);
+	log_info("started test");
 	counter = 0;
 	start_server(5555);
+
+	log_info("server start");
 
 	sleep(1);
 
@@ -173,6 +176,8 @@ TEST(network, wait_for_message)
 	free_message((struct message *)cast_message);
 
 	stop_server();
+
+	log_info("stop server");
 
 	EXPECT_EQ(counter, 0);
 
