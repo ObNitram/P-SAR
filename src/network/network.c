@@ -28,7 +28,7 @@ void * server_thread(void * arg)
 	listen_sock = -1;
 	struct addrinfo hints, *res, *p;
 	int rv;
-	const char listen_port[6]; // Listening port (as string)
+	char listen_port[6]; // Listening port (as string)
 
 	snprintf(listen_port, sizeof(listen_port), "%d", server_port);
 
