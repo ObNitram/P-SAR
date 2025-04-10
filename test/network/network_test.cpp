@@ -1,5 +1,7 @@
+#include <condition_variable>
 #include <cstdio>
 #include <gtest/gtest.h>
+#include <thread>
 
 extern "C" {
 #include "network/network.h"
@@ -11,7 +13,6 @@ extern "C" {
 const char *localhost = "127.0.0.1";
 const char *str = "Hello, this is a test message !";
 struct node_id dest{ "127.0.0.1", 5555 };
-
 
 static int counter = 0;
 
@@ -130,9 +131,11 @@ TEST(network, basic_receive2)
 }
 
 
-void *lunch_message(void *)
+void lunch_message(std::mutex &m, std::condition_variable &cv, bool &ready)
 {
-	sleep(1);
+	log_info("waiting to send");
+	std::unique_lock<std::mutex> lk(m);
+    cv.wait(lk, [&]{ return ready; });
 	struct message2 message = {};
 	message.message.message_type = 2;
 	message.data = 42;
@@ -140,48 +143,50 @@ void *lunch_message(void *)
 	strcpy(message.data3, localhost);
 
 	send_message(&dest, (struct message *)&message, sizeof(message));
-
-	return NULL;
 }
 
 
 TEST(network, wait_for_message)
 {
-	// deadlock
 	init_logger(stdout);
 	log_info("started test");
 	
-	// counter = 0;
-	// start_server(5555);
+	counter = 0;
+	start_server(5555);
 
-	// log_info("server start");
+	log_info("server start");
 
-	// sleep(1);
+	std::mutex m;
+	std::condition_variable cv;
+	bool ready;
 
-	// static pthread_t server_thread_id;
-	// pthread_create(&server_thread_id, NULL, lunch_message, NULL);
+	std::thread launch_msg(lunch_message, std::ref(m), std::ref(cv), std::ref(ready));
 
-	// struct message2 *cast_message = (struct message2 *)wait_message(2,NULL);
+	log_info("server ready");
+	ready = true;
+	cv.notify_all();
 
-	// EXPECT_EQ(cast_message->message.message_type, 2);
-	// EXPECT_TRUE(cast_message->message.sender.host != NULL);
-	// EXPECT_TRUE(strcmp(cast_message->message.sender.host, localhost) == 0);
+	struct message2 *cast_message = (struct message2 *)wait_message(2,NULL);
 
-	// EXPECT_EQ(cast_message->data, 42);
-	// EXPECT_TRUE(cast_message->data == 42);
+	EXPECT_EQ(cast_message->message.message_type, 2);
+	EXPECT_TRUE(cast_message->message.sender.host != NULL);
+	EXPECT_TRUE(strcmp(cast_message->message.sender.host, localhost) == 0);
 
-	// EXPECT_EQ(cast_message->data2, 24);
-	// EXPECT_TRUE(cast_message->data2 == 24);
+	EXPECT_EQ(cast_message->data, 42);
+	EXPECT_TRUE(cast_message->data == 42);
 
-	// EXPECT_TRUE(strcmp(cast_message->data3, localhost) == 0);
+	EXPECT_EQ(cast_message->data2, 24);
+	EXPECT_TRUE(cast_message->data2 == 24);
 
-	// free_message((struct message *)cast_message);
+	EXPECT_TRUE(strcmp(cast_message->data3, localhost) == 0);
 
-	// stop_server();
+	free_message((struct message *)cast_message);
 
-	// log_info("stop server");
+	stop_server();
 
-	// EXPECT_EQ(counter, 0);
+	log_info("stop server");
 
-	// pthread_join(server_thread_id, NULL);
+	EXPECT_EQ(counter, 0);
+
+	launch_msg.join();
 }
