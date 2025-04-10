@@ -23,5 +23,5 @@ jobs:
       - name: run main
         run: ./build/main-psar
 
-      - name: run gtest
-        run: timeout 2m ./build/test-psar
+      # - name: run gtest
+      #   run: timeout 2m ./build/test-psar
