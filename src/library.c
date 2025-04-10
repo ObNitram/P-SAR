@@ -1,4 +1,5 @@
 #include "library.h"
+#include "network/message.h"
 
 static int init_my_node_id() 
 {
@@ -99,14 +100,13 @@ void *join_DSM(const char *host, int connect_port, int server_port)
 	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
 
-	struct message *mess_joining = malloc(msg_sz);
-	mess_joining->message_type = JOIN_DSM;
-	send_message(nd, mess_joining, msg_sz);
+    struct message mess_joining;
+	mess_joining.message_type = JOIN_DSM;
+	send_message(nd, &mess_joining, msg_sz);
 	
 	struct message *dsm_info = wait_message(INFO_DSM, NULL) ;
 	init_core(nb_pages, nd);
 	
-	free_message(mess_joining);
 	free_message(dsm_info);
 
 

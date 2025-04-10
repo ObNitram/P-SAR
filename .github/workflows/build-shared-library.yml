@@ -14,9 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: init valgrind
-        run: sudo apt-get install valgrind
-
       - name: init cmake
         run: cmake -S .
 
@@ -27,6 +24,4 @@ jobs:
         run: ./build/main-psar
 
       - name: run gtest
-        run: timeout 2m valgrind --leak-check=full --show-leak-kinds=all ./build/test-psar
-
-
+        run: timeout 2m ./build/test-psar

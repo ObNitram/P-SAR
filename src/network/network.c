@@ -1,4 +1,6 @@
 #include "network.h"
+#include <netinet/in.h>
+#include <string.h>
 
 static struct message *waiting_message;
 static size_t waiting_message_type;
@@ -254,6 +256,7 @@ void send_message(const struct node_id *dest,
 
 	// Complete the message with the sender's information
 	message->sender.port = get_server_port();
+    // message->sender.host is currently set at the reception of the message
 
 	struct addrinfo hints, *servinfo, *p;
 	int rv;

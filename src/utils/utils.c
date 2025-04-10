@@ -5,7 +5,10 @@ unsigned int nb_pages;
 struct node_list node_list;
 unsigned int nb_nodees;
 
-const struct node_id EMPTY_NODE = {"", -1};
+const struct node_id EMPTY_NODE = {
+    .host = "",
+    .port = -1
+};
 struct node_id me;
 
 void init_nodes(struct node_list *list) 
