@@ -80,10 +80,10 @@ void worker_node(const size_t node_id, const int server_port,
 
 	int *tab = join_DSM("localhost", server_port, server_port + node_id);
 
-	size_t raw_tab_size = tab_size * sizeof(int);
-	size_t raw_segment_size = raw_tab_size / number_of_node;
+	const size_t raw_tab_size = tab_size * sizeof(int);
+	const size_t raw_segment_size = raw_tab_size / number_of_node;
 
-	size_t segment_size = tab_size / number_of_node;
+	const size_t segment_size = tab_size / number_of_node;
 	int *node_tab = tab + (node_id - 1) * segment_size;
 
 	lock_write(node_tab, raw_segment_size);
