@@ -2,12 +2,13 @@
 
 static struct message *waiting_message;
 static size_t waiting_message_type;
-static pthread_mutex_t mutex;
-static pthread_cond_t cond;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 static struct message_type_queue {
 	void (*foo)(struct message *);
 } message_type_queues[MAX_MESSAGES] = {};
+static pthread_mutex_t mtq_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static pthread_t server_thread_id;
 

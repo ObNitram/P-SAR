@@ -7,6 +7,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build)
 
+# add_compile_options(-fsanitize=thread)
+# add_link_options(-fsanitize=thread)
+
 # Gather source and header files
 file(GLOB_RECURSE SOURCES "${PROJECT_SOURCE_DIR}/src/*.c")
 file(GLOB_RECURSE HEADERS "${PROJECT_SOURCE_DIR}/src/*.h")
