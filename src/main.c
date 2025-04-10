@@ -1,6 +1,8 @@
 #include "library.h"
 #include "utils/logger.h"
+
 #include <sys/wait.h>
+#include <stdbool.h>
 
 #include <stddef.h>  // for size_t
 
@@ -53,10 +55,28 @@ void sort(int *tab, const size_t tab_size)
 	quick_sort(tab, 0, tab_size - 1);
 }
 
-void worker_node(size_t node_id, int server_port, size_t number_of_node, size_t tab_size)
+
+bool is_sorted(const int *tab, const size_t tab_size)
+{
+	if (tab_size == 0) {
+		return true; // If the array is empty, it's considered sorted
+	}
+	for (size_t i = 0; i < tab_size - 1; i++) {
+		if (tab[i] > tab[i + 1]) {
+			// log_error("Array is not sorted at index %zu: %d > %d",
+			//           i, tab[i], tab[i + 1]);
+			return false;
+		}
+	}
+	return true;
+}
+
+
+void worker_node(const size_t node_id, const int server_port,
+                 const size_t number_of_node,
+                 const size_t tab_size)
 {
 	log_info("Worker node %ld", node_id);
-
 
 	int *tab = join_DSM("localhost", server_port, server_port + node_id);
 
@@ -66,9 +86,50 @@ void worker_node(size_t node_id, int server_port, size_t number_of_node, size_t 
 	size_t segment_size = tab_size / number_of_node;
 	int *node_tab = tab + (node_id - 1) * segment_size;
 
-	lock_write(tab, raw_segment_size);
-	sort(node_tab, raw_segment_size);
-	unlock_write(tab, raw_segment_size);
+	lock_write(node_tab, raw_segment_size);
+	sort(node_tab, segment_size);
+	unlock_write(node_tab, raw_segment_size);
+
+	free_DSM();
+}
+
+void main_node(int server_port, size_t tab_size)
+{
+	const size_t row_size = tab_size * sizeof(int);
+
+	// Allocate and initialize the DSM
+	log_info("Initializing DSM");
+	int *tab = Init_DSM(row_size, server_port);
+	log_info("DSM initialized");
+
+	log_info("Filling DSM with random values");
+	lock_write(tab, row_size);
+	for (int i = 0; i < tab_size; i++) {
+		tab[i] = rand();
+	}
+	unlock_write(tab, row_size);
+
+	log_info("Printing initial values");
+	lock_read(tab, row_size);
+	for (int i = 0; i < 24; i++) {
+		printf("%d\n", tab[i]);
+	}
+	printf("\n");
+	unlock_read(tab, row_size);
+
+	while (true) {
+		sleep(1);
+
+		lock_read(tab, row_size);
+		bool is_sorted_ = is_sorted(tab, tab_size);
+		unlock_read(tab, row_size);
+
+		if (is_sorted_) {
+			break;
+		}
+	}
+
+	log_info("The array is sorted");
 
 	free_DSM();
 }
@@ -104,36 +165,24 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	const size_t tab_size = 1000;
-	const size_t row_size = tab_size * sizeof(int);
+	const size_t tab_size = 1000 * number_of_node;
 
-
-
-	// Allocate and initialize the DSM
-	log_info("Initializing DSM");
-	int *tab = Init_DSM(row_size, port);
-	log_info("DSM initialized");
-
-
-	log_info("Filling DSM with random values");
-	lock_write(tab, row_size);
-	for (int i = 0; i < tab_size; i++) {
-		tab[i] = rand();
+	int sun = fork();
+	if (sun == -1) {
+		perror("fork");
+		exit(EXIT_FAILURE);
 	}
-	unlock_write(tab, row_size);
-
-	log_info("Printing initial values");
-	lock_read(tab, row_size);
-	for (int i = 0; i < 24; i++) {
-		printf("%d\n", tab[i]);
+	if (sun == 0) {
+		main_node(port, tab_size);
+		return 0;
 	}
-	printf("\n");
-	unlock_read(tab, row_size);
+
+	sleep(1);
 
 	log_info("Starting worker nodes...");
 
 	for (size_t node_id = 1; node_id < number_of_node; node_id++) {
-		const int sun = fork();
+		sun = fork();
 		if (sun == -1) {
 			perror("fork");
 			exit(EXIT_FAILURE);
@@ -144,18 +193,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	for (size_t node_id = 1; node_id < number_of_node; node_id++) {
+	for (size_t node_id = 0; node_id < number_of_node; node_id++) {
 		wait(NULL);
 	}
-
-
-	lock_read(tab, row_size);
-	for (int i = 0; i < 24; i++) {
-		printf("%d\n", tab[i]);
-	}
-	printf("\n");
-	unlock_read(tab, row_size);
-
-	free_DSM();
-	log_info("DSM freed");
 }
