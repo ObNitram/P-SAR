@@ -49,9 +49,6 @@ void * server_thread(void * arg)
 		return NULL;
 	}
 
-	char tmp_test[INET6_ADDRSTRLEN];
-	inet_ntop(AF_INET, &serveraddr.sin_addr, tmp_test, INET6_ADDRSTRLEN);
-
 	// Enable address reuse.
 	int optval = 1;
 	if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &optval,
