@@ -102,11 +102,11 @@ static inline void clear_internal_data(void) {
 	pthread_cond_destroy(&cond);
 }
 
-void *Init_DSM(size_t size, int port)
+void *Init_DSM(size_t size, const char* interface, int port)
 {
 	init_internal_data(1);
-	start_server(port);
 	init_CS(&EMPTY_NODE, 1);
+	start_server(port, interface);
 	set_all_handlers();
 	
 	// init internal data
@@ -134,12 +134,12 @@ void free_DSM(void)
 	clear_internal_data();
 }
 
-void *join_DSM(const char *host, int connect_port, int server_port)
+void *join_DSM(const char *host, int connect_port, const char *interface, int server_port)
 {
 	init_internal_data(0);
 	size_t msg_sz = sizeof(struct message);
 
-	start_server(server_port);
+	start_server(server_port, interface);
 	set_all_handlers();
 	
 	if (init_my_node_id()) return NULL;

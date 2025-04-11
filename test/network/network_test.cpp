@@ -30,7 +30,7 @@ TEST(network, basic_receive)
 {
 	init_logger(stderr);
 	counter = 0;
-	start_server(5555);
+	start_server(5555, NULL);
 
 	addHandler(1,NULL, callBack);
 
@@ -52,7 +52,7 @@ TEST(network, must_not_receive_if_message_number_is_different)
 {
 	init_logger(stderr);
 	counter = 0;
-	start_server(5555);
+	start_server(5555, NULL);
 
 	addHandler(1,NULL, callBack);
 
@@ -100,7 +100,7 @@ TEST(network, basic_receive2)
 {
 	init_logger(stderr);
 	counter = 0;
-	start_server(5555);
+	start_server(5555, NULL);
 
 	addHandler(2,NULL, callBack2);
 
@@ -141,7 +141,7 @@ TEST(network, wait_for_message)
 {
 	init_logger(stderr);
 	counter = 0;
-	start_server(5555);
+	start_server(5555, NULL);
 
 	sleep(1);
 
