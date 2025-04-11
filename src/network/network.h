@@ -32,7 +32,7 @@
 /// @details Initializes the server and begins listening for incoming connections on the given port.
 ///          This function should be called before attempting to send or receive messages.
 /// @param port The port number on which the server will listen.
-/// @param interface The address on which the socket server will be bind, if NULL then 127.0.0.1 will be used.
+/// @param interface The address on which the socket server will be bind, if NULL then LOCALHOST will be used.
 void start_server(int port, const char* interface);
 
 /// @brief Stops the running server.

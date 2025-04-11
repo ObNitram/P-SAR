@@ -1,4 +1,5 @@
 #include "network.h"
+#include "library.h"
 #include <netinet/in.h>
 #include <string.h>
 
@@ -41,7 +42,7 @@ void * server_thread(void * arg)
 		return NULL;
 	}
 
-	if (inet_pton(AF_INET, interface ? interface : "127.0.0.1",
+	if (inet_pton(AF_INET, interface ? interface : LOCALHOST,
 		      &serveraddr.sin_addr) <= 0) {
 		perror("inet_pton");
 		close(listen_sock);
