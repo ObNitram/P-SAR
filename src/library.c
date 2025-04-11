@@ -59,9 +59,9 @@ static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (
 	}
 }
 
-void *Init_DSM(size_t size, int port)
+void *Init_DSM(size_t size, const char* interface, int port)
 {
-	start_server(port);
+	start_server(port, interface);
 	set_all_handlers();
 	
 	// init internal data
@@ -88,11 +88,11 @@ void free_DSM()
 	munmap(dsm, nb_pages * PAGE_SIZE);
 }
 
-void *join_DSM(const char *host, int connect_port, int server_port)
+void *join_DSM(const char *host, int connect_port, const char *interface, int server_port)
 {
 	size_t msg_sz = sizeof(struct message);
 
-	start_server(server_port);
+	start_server(server_port, interface);
 	set_all_handlers();
 	
 	if (init_my_node_id()) return NULL;
