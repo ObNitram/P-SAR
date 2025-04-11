@@ -10,8 +10,8 @@
 #ifdef DATA_TRANS_DEBUG
     #include "../utils/logger.h"
     #define LOG_DATA_TRANS(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-    #define ENSURE_ERROR_DATA_TRANS(condition, fmt, ...) ensure_error(condition, fmr, ##__VA_ARGS__)
-    #define ENSURE_WARNING_DATA_TRANS(condition, fmt, ...) ensure_warning(condition, fmr, ##__VA_ARGS__)
+    #define ENSURE_ERROR_DATA_TRANS(condition, fmt, ...) ensure_error(condition, fmt, ##__VA_ARGS__)
+    #define ENSURE_WARNING_DATA_TRANS(condition, fmt, ...) ensure_warning(condition, fmt, ##__VA_ARGS__)
 #else
     #define LOG_DATA_TRANS(fmt, ...)
     #define ENSURE_ERROR_DATA_TRANS(condition, fmt, ...) 0

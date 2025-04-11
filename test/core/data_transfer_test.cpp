@@ -53,7 +53,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
     int eq = 0;
     if (pid) {
         
-        Init_DSM(SIZE_DSM, init_port);
+        Init_DSM(SIZE_DSM, LOCALHOST, init_port);
 
         eq = check_page_owners_equality();
         ASSERT_EQ(eq, 1);
@@ -80,7 +80,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
         // wait until INIT is setup
         sleep(1);
 
-        join_DSM(addr_init, init_port, joiner_port);
+        join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
 
         ASSERT_EQ(nb_pages, nb_pages_);
 
