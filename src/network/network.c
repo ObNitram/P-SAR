@@ -1,4 +1,6 @@
 #include "network.h"
+#include <netinet/in.h>
+#include <string.h>
 
 static struct message *waiting_message;
 static size_t waiting_message_type;
@@ -16,7 +18,7 @@ static int listen_sock = -1;
 
 static int server_port = -1;
 
-void server_thread()
+void * server_thread(void * arg)
 {
 	LOG_NETWORK("Server thread started");
 
@@ -28,7 +30,7 @@ void server_thread()
 	listen_sock = -1;
 	struct addrinfo hints, *res, *p;
 	int rv;
-	const char listen_port[6]; // Listening port (as string)
+	char listen_port[6]; // Listening port (as string)
 
 	snprintf(listen_port, sizeof(listen_port), "%d", server_port);
 
@@ -40,7 +42,7 @@ void server_thread()
 
 	if ((rv = getaddrinfo(NULL, listen_port, &hints, &res)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return;
+		return NULL;
 	}
 
 	// Loop through all results and bind to the first we can.
@@ -74,7 +76,7 @@ void server_thread()
 			"Failed to bind listening socket on port %s\n",
 			listen_port);
 		freeaddrinfo(res);
-		return;
+		return NULL;
 	}
 	freeaddrinfo(res);
 
@@ -82,7 +84,7 @@ void server_thread()
 	if (listen(listen_sock, 5) < 0) {
 		perror("listen");
 		close(listen_sock);
-		return;
+		return NULL;
 	}
 
 	// wake up the main thread
@@ -101,7 +103,7 @@ void server_thread()
 		if (conn_sock < 0) {
 			perror("accept");
 			close(listen_sock);
-			return;
+			return NULL;
 		}
 
 		size_t message_size = 0;
@@ -111,7 +113,7 @@ void server_thread()
 			perror("read");
 			close(conn_sock);
 			close(listen_sock);
-			return;
+			return NULL;
 		}
 
 		struct message *message = malloc(message_size);
@@ -120,7 +122,7 @@ void server_thread()
 			perror("read");
 			close(conn_sock);
 			close(listen_sock);
-			return;
+			return NULL;
 		}
 
 		size_t message_type = message->message_type;
@@ -161,6 +163,7 @@ void server_thread()
 		close(conn_sock);
 	}
 	close(listen_sock);
+    return NULL;
 }
 
 void start_server(const int port)
@@ -253,6 +256,7 @@ void send_message(const struct node_id *dest,
 
 	// Complete the message with the sender's information
 	message->sender.port = get_server_port();
+    // message->sender.host is currently set at the reception of the message
 
 	struct addrinfo hints, *servinfo, *p;
 	int rv;

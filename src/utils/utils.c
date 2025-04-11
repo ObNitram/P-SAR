@@ -5,7 +5,10 @@ unsigned int nb_pages;
 struct node_list node_list;
 unsigned int nb_nodees;
 
-const struct node_id EMPTY_NODE = {"", -1};
+const struct node_id EMPTY_NODE = {
+    .host = "",
+    .port = -1
+};
 struct node_id me;
 
 void init_nodes(struct node_list *list) 
@@ -18,7 +21,7 @@ struct node_list *add_to_nodes(struct node_list *list, const char *host,
 							   const int port) 
 {
 	struct node_list *ndlst = malloc(sizeof(struct node_list));
-	size_t sz = min(strlen(host),INET6_ADDRSTRLEN) ;
+	size_t sz = INET6_ADDRSTRLEN;
 	memcpy(ndlst->node.host, host, sizeof(char) * sz);
 	ndlst->node.port = port;
 	list_add(&ndlst->nlist, &list->nlist);
