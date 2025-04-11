@@ -62,23 +62,23 @@ TEST(multiple_joins, try_multiple_joiner_at_same_time_to_the_same_node) {
             sleep(1);
             switch (i) {
                 case 1:
-                    join_DSM(creator.host, creator.port, joiner1.port);
+                    join_DSM(creator.host, creator.port, LOCALHOST, joiner1.port);
                     break;
 
                 case 2:
-                    join_DSM(creator.host, creator.port, joiner2.port);
+                    join_DSM(creator.host, creator.port, LOCALHOST, joiner2.port);
                     break;
 
                 case 3:
-                    join_DSM(creator.host, creator.port, joiner3.port);
+                    join_DSM(creator.host, creator.port, LOCALHOST, joiner3.port);
                     break;
 
                 case 4:
-                    join_DSM(creator.host, creator.port, joiner4.port);
+                    join_DSM(creator.host, creator.port, LOCALHOST, joiner4.port);
                     break;
 
                 default:
-                    join_DSM(creator.host, creator.port, joiner5.port);
+                    join_DSM(creator.host, creator.port, LOCALHOST, joiner5.port);
                     break;
             }
 
@@ -97,7 +97,7 @@ TEST(multiple_joins, try_multiple_joiner_at_same_time_to_the_same_node) {
         }
     }
 
-    Init_DSM(PAGE_SIZE, creator.port);
+    Init_DSM(PAGE_SIZE, LOCALHOST, creator.port);
 
     log_info("me CREATOR ready\n");
 
