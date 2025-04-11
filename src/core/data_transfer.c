@@ -42,6 +42,10 @@ static void ASK_PAGE_handler(struct message *message) {
 void sync_page(struct node_id *owner, size_t page_id){
     size_t ms_sz =  sizeof(struct message) + sizeof(size_t) +
                     sizeof(struct node_id);
+    if (node_equal(owner, &me)) {
+        // We already got the data
+        return;
+    }
     struct message *msg = malloc(ms_sz);
     msg->message_type = ASK_PAGE;
     size_t * index_p = (size_t *) (msg + 1);
