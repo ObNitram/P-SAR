@@ -30,6 +30,7 @@ enum message_type {
     INFO_DSM, 
     ASK_PAGE,
     RECV_PAGE, 
+    RECV_PAGE_LEAVE,
     DT_LEAVE,
     ACK_RECV_PAGE,
 };

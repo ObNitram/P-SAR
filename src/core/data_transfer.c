@@ -8,7 +8,7 @@
 struct node_id *page_owners;
 static pthread_mutex_t *page_mtx;
 static pthread_cond_t *page_cond;
-// represents the state of the page, 1 if we called sync_page else 0
+// represents the state of the page, 1 if we called sync_page or leave_data_transfer else 0
 static char *page_state;
 
 static void wait_page(size_t page_id) {
@@ -26,9 +26,9 @@ static void signal_page(size_t page_id) {
 }
 
 static struct message *build_PAGE_message(size_t page_id, size_t *sz) {
-    void *addr_pg = dsm + PAGE_SIZE * page_id;
     *sz = sizeof(struct message) + sizeof(size_t)
                                  + PAGE_SIZE;
+    void *addr_pg = dsm + PAGE_SIZE * page_id;
     struct message *msg = malloc(*sz);
     size_t *index_p = (size_t * ) (msg + 1);
     *index_p = page_id;
@@ -36,15 +36,19 @@ static struct message *build_PAGE_message(size_t page_id, size_t *sz) {
     return msg;
 }
 
-static void RECV_PAGE_handler(struct message *message) {
+static void PAGE_handler(struct message *message) {
     size_t *page_id = (size_t *) (message + 1);
     void *addr_np = (void *) (page_id + 1);
     void *addr_p = dsm + (*page_id) * PAGE_SIZE;
     pthread_mutex_lock(page_mtx + *page_id);
     node_copy(page_owners + *page_id, &message->sender);
     memcpy(addr_p, addr_np, PAGE_SIZE);
-    if (page_state[*page_id])
-        signal_page(*page_id);
+}
+
+static void RECV_PAGE_handler(struct message *message) {
+    PAGE_handler(message);
+    size_t *page_id = (size_t *) (message + 1);
+    signal_page(*page_id);
     pthread_mutex_unlock(page_mtx + *page_id);
 }
 
@@ -59,6 +63,17 @@ static void transfer_page(struct node_id *requester, size_t page_id) {
     struct message *msg = build_RECV_PAGE_message(page_id, &ms_sz);
     send_message(requester, msg, ms_sz);
     free_message(msg);
+}
+
+// message + id + node
+static struct message *build_rqst_message(size_t page_id, struct node_id *node, size_t *sz) {
+    *sz =  sizeof(struct message) + sizeof(size_t) 
+                                  + sizeof(struct node_id);
+    struct message *msg = malloc(*sz);
+    size_t * index_p = (size_t *) (msg + 1);
+    *index_p = page_id;
+    node_copy((struct node_id *) (index_p + 1), node);
+    return msg;
 }
 
 static void ASK_PAGE_handler(struct message *message) {
@@ -77,21 +92,15 @@ static void ASK_PAGE_handler(struct message *message) {
 }
 
 static struct message *build_ASK_PAGE_message(size_t page_id, size_t *sz) {
-    *sz =  sizeof(struct message) + sizeof(size_t) 
-                                  + sizeof(struct node_id);
-    struct message *msg = malloc(*sz);
+    struct message *msg = build_rqst_message(page_id, &me, sz);
     msg->message_type = ASK_PAGE;
-    size_t * index_p = (size_t *) (msg + 1);
-    *index_p = page_id;
-    node_copy((struct node_id *) (index_p + 1), &me);
     return msg;
 }
 
 static void ACK_RECV_PAGE_handler(struct message *message) {
     size_t *page_id = (size_t *) (message + 1);
     pthread_mutex_lock(page_mtx + *page_id);
-    page_state[*page_id] = 1;
-    pthread_cond_signal(page_cond + *page_id);
+    signal_page(*page_id);
     pthread_mutex_unlock(page_mtx + *page_id);
 }
 
@@ -104,13 +113,45 @@ static struct message *build_ACK_RECV_PAGE_message(size_t page_id, size_t *sz) {
     return msg;
 }
 
-static void DT_LEAVE_handler(struct message *message){
-    
+static void DT_LEAVE_handler(struct message *message) {
+    size_t *index_p = (size_t *) (message + 1);
+    struct node_id *new_owner = (struct node_id *) (index_p + 1);
+    pthread_mutex_lock(page_mtx + *index_p);
+    node_copy(page_owners + *index_p, new_owner);
+    if (page_state[*index_p]) {
+        // just reuse the same message because it's the same structure
+        node_copy(new_owner, &me);
+        message->message_type = ASK_PAGE;
+        send_message(page_owners + *index_p,
+                    message,  sizeof(struct message) + 
+                              sizeof(size_t) +
+                              sizeof(struct node_id));
+    }
+    pthread_mutex_unlock(page_mtx + *index_p);
 }
 
-static struct message *build_DT_LEAVE_message(size_t page_id, size_t *sz) {
-    struct message *msg = build_PAGE_message(page_id, sz);
+static struct message *build_DT_LEAVE_message(size_t page_id,
+                                              struct node_id *new_owner, size_t *sz) {
+    struct message *msg = build_rqst_message(page_id, new_owner, sz);
     msg->message_type = DT_LEAVE;
+    return msg;
+}
+
+static void RECV_PAGE_LEAVE_handler(struct message *message) {
+    size_t *page_id = (size_t *) (message + 1);
+    PAGE_handler(message);
+    if (page_state[*page_id])
+        signal_page(*page_id);
+    pthread_mutex_unlock(page_mtx + *page_id);
+    size_t ms_sz;
+    struct message *msg = build_ACK_RECV_PAGE_message(*page_id, &ms_sz);
+    send_message(&message->sender, msg, ms_sz);
+    free_message(msg);
+}
+
+static struct message *build_RECV_PAGE_LEAVE_message(size_t page_id, size_t *sz) {
+    struct message *msg = build_RECV_PAGE_message(page_id, sz);
+    msg->message_type = RECV_PAGE_LEAVE;
     return msg;
 }
 
@@ -174,7 +215,8 @@ void leave_data_transfer(struct node_id *new_owner) {
     addHandler(ASK_PAGE, NULL, NULL);
     for (size_t i = 0; i < nb_pages; i++) {
         if (node_equal(page_owners + i, &me)) {
-            page_state[i] = 0;
+            page_state[i] = 1;
+
             size_t ms_sz;
             struct message *msg = build_RECV_PAGE_message(i, &ms_sz);
             send_message(new_owner, msg, ms_sz);
@@ -182,18 +224,18 @@ void leave_data_transfer(struct node_id *new_owner) {
 
             // wait for ack message
             pthread_mutex_lock(page_mtx + i);
-            while (!page_state[i]){
+            while (page_state[i]){
                 pthread_cond_wait(page_cond + i, page_mtx + i);
             }
             pthread_mutex_unlock(page_mtx + i);
             
-
+            // broadcast to each other node, the info about the new owner
             struct node_list *n = &node_list;
             list_for_each_entry_continue(n, &node_list.nlist, nlist) {
                 if (node_equal(&n->node, &me) || node_equal(&n->node, new_owner))
                     continue;
                 size_t ms_sz;
-                struct message *msg = build_DT_LEAVE_message(i, &ms_sz);
+                struct message *msg = build_DT_LEAVE_message(i, new_owner, &ms_sz);
                 send_message(&n->node, msg, ms_sz);
                 free_message(msg);
             }
