@@ -29,7 +29,9 @@ enum message_type {
     JOIN_DSM, 
     INFO_DSM, 
     ASK_PAGE,
-    RECV_PAGE
+    RECV_PAGE, 
+    DT_LEAVE,
+    ACK_RECV_PAGE,
 };
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
