@@ -1,4 +1,7 @@
 #include "network.h"
+#include "library.h"
+#include <netinet/in.h>
+#include <string.h>
 
 static struct message *waiting_message;
 static size_t waiting_message_type;
@@ -16,7 +19,7 @@ static int listen_sock = -1;
 
 static int server_port = -1;
 
-void server_thread()
+void * server_thread(void * arg)
 {
 	LOG_NETWORK("Server thread started");
 
@@ -26,63 +29,46 @@ void server_thread()
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
 	listen_sock = -1;
-	struct addrinfo hints, *res, *p;
-	int rv;
-	const char listen_port[6]; // Listening port (as string)
+	char listen_port[6]; // Listening port (as string)
+	const char *interface = (char *)arg;
 
-	snprintf(listen_port, sizeof(listen_port), "%d", server_port);
+	struct sockaddr_in serveraddr = { 0 };
+	serveraddr.sin_family = AF_INET;
+	serveraddr.sin_port = htons(server_port);
 
-	// Set up hints for getaddrinfo for a passive (server) socket.
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
-	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-	hints.ai_flags = AI_PASSIVE; // Use the local IP
-
-	if ((rv = getaddrinfo(NULL, listen_port, &hints, &res)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return;
+	listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock < 0) {
+		perror("socket");
+		return NULL;
 	}
 
-	// Loop through all results and bind to the first we can.
-	for (p = res; p != NULL; p = p->ai_next) {
-		listen_sock = socket(p->ai_family, p->ai_socktype,
-		                     p->ai_protocol);
-		if (listen_sock < 0) {
-			perror("socket");
-			continue;
-		}
-		// Enable address reuse.
-		int optval = 1;
-		if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR,
-		               &optval,
-		               sizeof(optval)) < 0) {
-			perror("setsockopt");
-			close(listen_sock);
-			continue;
-		}
-		if (bind(listen_sock, p->ai_addr, p->ai_addrlen) < 0) {
-			perror("bind");
-			close(listen_sock);
-			continue;
-		}
-		break; // Successfully bound.
+	if (inet_pton(AF_INET, interface ? interface : LOCALHOST,
+		      &serveraddr.sin_addr) <= 0) {
+		perror("inet_pton");
+		close(listen_sock);
+		return NULL;
 	}
 
-	if (p == NULL || listen_sock == -1) {
-		fprintf(
-			stderr,
-			"Failed to bind listening socket on port %s\n",
-			listen_port);
-		freeaddrinfo(res);
-		return;
+	// Enable address reuse.
+	int optval = 1;
+	if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &optval,
+		       sizeof(optval)) < 0) {
+		perror("setsockopt");
+		close(listen_sock);
+		return NULL;
 	}
-	freeaddrinfo(res);
+	if (bind(listen_sock, (struct sockaddr *)&serveraddr,
+		 sizeof(serveraddr)) < 0) {
+		perror("bind");
+		close(listen_sock);
+		return NULL;
+	}
 
 	// Start listening for incoming connections.
 	if (listen(listen_sock, 5) < 0) {
 		perror("listen");
 		close(listen_sock);
-		return;
+		return NULL;
 	}
 
 	// wake up the main thread
@@ -101,7 +87,7 @@ void server_thread()
 		if (conn_sock < 0) {
 			perror("accept");
 			close(listen_sock);
-			return;
+			return NULL;
 		}
 
 		size_t message_size = 0;
@@ -111,7 +97,7 @@ void server_thread()
 			perror("read");
 			close(conn_sock);
 			close(listen_sock);
-			return;
+			return NULL;
 		}
 
 		struct message *message = malloc(message_size);
@@ -120,7 +106,7 @@ void server_thread()
 			perror("read");
 			close(conn_sock);
 			close(listen_sock);
-			return;
+			return NULL;
 		}
 
 		size_t message_type = message->message_type;
@@ -161,9 +147,10 @@ void server_thread()
 		close(conn_sock);
 	}
 	close(listen_sock);
+    return NULL;
 }
 
-void start_server(const int port)
+void start_server(const int port, const char* interface)
 {
 	LOG_NETWORK("Starting server on port %i", port);
 	server_port = port;
@@ -172,7 +159,7 @@ void start_server(const int port)
 	}
 
 	server_is_running = 1;
-	pthread_create(&server_thread_id, NULL, server_thread, NULL);
+	pthread_create(&server_thread_id, NULL, server_thread, (void *)interface);
 	// wait until the server is started
 	pthread_mutex_lock(&mutex);
 	pthread_cond_wait(&cond, &mutex);
@@ -207,29 +194,17 @@ int get_server_port()
 
 char * get_server_ip()
 {
+	struct sockaddr_in local_addr;
+	socklen_t addr_len = sizeof(local_addr);
+
+	if (getsockname(listen_sock, (struct sockaddr *)&local_addr,
+			&addr_len) == -1) {
+		perror("getsockname");
+		return NULL;
+	}
+
 	char *ip = malloc(INET6_ADDRSTRLEN);
-	if (ip == NULL) {
-		perror("malloc");
-		return NULL;
-	}
-
-	struct addrinfo hints, *res;
-	int rv;
-
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-
-	if ((rv = getaddrinfo("localhost", NULL, &hints, &res)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		free(ip);
-		return NULL;
-	}
-
-	struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
-	inet_ntop(AF_INET, &addr->sin_addr, ip, INET6_ADDRSTRLEN);
-
-	freeaddrinfo(res);
+	inet_ntop(AF_INET, &local_addr.sin_addr, ip, INET6_ADDRSTRLEN);
 
 	return ip;
 }
@@ -253,6 +228,7 @@ void send_message(const struct node_id *dest,
 
 	// Complete the message with the sender's information
 	message->sender.port = get_server_port();
+    // message->sender.host is currently set at the reception of the message
 
 	struct addrinfo hints, *servinfo, *p;
 	int rv;

@@ -65,7 +65,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
     pid_t pid = fork();
     if (pid) {
         
-        Init_DSM(SIZE_DSM, init_port);
+        Init_DSM(SIZE_DSM, LOCALHOST, init_port);
 
         log_info("INIT :  dsm ready");
 
@@ -96,7 +96,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
         // wait until INIT is setup
         sleep(1);
 
-        join_DSM(addr_init, init_port, joiner_port);
+        join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
 
         ASSERT_EQ(nb_pages, nb_pages_);
 

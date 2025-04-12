@@ -20,8 +20,8 @@
 #ifdef NETWORK_DEBUG
     #include "../utils/logger.h"
     #define LOG_NETWORK(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-    #define ENSURE_ERROR_NETWORK(condition, fmt, ...) ensure_error(condition, fmr, ##__VA_ARGS__)
-    #define ENSURE_WARNING_NETWORK(condition, fmt, ...) ensure_warning(condition, fmr, ##__VA_ARGS__)
+    #define ENSURE_ERROR_NETWORK(condition, fmt, ...) ensure_error(condition, fmt, ##__VA_ARGS__)
+    #define ENSURE_WARNING_NETWORK(condition, fmt, ...) ensure_warning(condition, fmt, ##__VA_ARGS__)
 #else
     #define LOG_NETWORK(fmt, ...)
     #define ENSURE_ERROR_NETWORK(condition, fmt, ...) 0
@@ -32,7 +32,8 @@
 /// @details Initializes the server and begins listening for incoming connections on the given port.
 ///          This function should be called before attempting to send or receive messages.
 /// @param port The port number on which the server will listen.
-void start_server(int port);
+/// @param interface The address on which the socket server will be bind, if NULL then LOCALHOST will be used.
+void start_server(int port, const char* interface);
 
 /// @brief Stops the running server.
 /// @details Gracefully stops the server by closing all connections and terminating the server thread.
