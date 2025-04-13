@@ -6,6 +6,7 @@ struct node_id father;
 struct node_id next;
 // mutex to manage data race 
 static pthread_mutex_t mtx;
+static pthread_cond_t cond;
 
 static void send_request_to_father(struct node_id *requester) {
     size_t sz = sizeof(struct message) + sizeof(struct node_id);
@@ -42,6 +43,7 @@ static void REQUEST_CS_handler(struct message *message) {
 static void GET_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
     token = 1;
+    pthread_cond_signal(&cond);
     pthread_mutex_unlock(&mtx);
 }
 
@@ -55,8 +57,7 @@ void request_CS() {
     if (!node_equal(&father, &EMPTY_NODE)) {
         send_request_to_father(&me);
     }
-    struct message *msg = wait_message(GET_CS, NULL);
-    free_message(msg);
+    while(!token) pthread_cond_wait(&cond, &mtx);
     pthread_mutex_unlock(&mtx);
 }
 
@@ -75,6 +76,7 @@ void init_CS(const struct node_id *father_init, bool token_init) {
     token = token_init;
     requesting = 0;
     pthread_mutex_init(&mtx, NULL);
+    pthread_cond_init(&cond, NULL);
     node_copy(&father, father_init);
     node_copy(&next, &EMPTY_NODE);
     addHandler(REQUEST_CS, NULL, REQUEST_CS_handler);

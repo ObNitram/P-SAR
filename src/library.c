@@ -152,11 +152,12 @@ void *join_DSM(const char *host, int connect_port, const char *interface, int se
 	mess_joining.message_type = JOIN_DSM;
 	send_message(nd, &mess_joining, msg_sz);
 	
-	struct message *dsm_info = wait_message(INFO_DSM, NULL) ;
+	pthread_mutex_lock(&mtx);
+	while(!in_dsm) {
+		pthread_cond_wait(&cond, &mtx);
+	}
+	pthread_mutex_unlock(&mtx);
 	init_core(nb_pages, nd);
-	
-	free_message(dsm_info);
-
 
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
 		PROT_READ | PROT_WRITE,
