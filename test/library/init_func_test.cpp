@@ -35,7 +35,7 @@ static int check_node_list_equality(struct node_id nodes[]) {
     list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
         assert(n1->node.port != -1);
         for (int i = 0; i<nb_nodes_; i++) {
-            if (node_equal(&n1->node, nodes)) {
+            if (node_equal(&n1->node, &nodes[i])) {
                 found = 1;
                 break;
             }

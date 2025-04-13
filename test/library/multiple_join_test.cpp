@@ -39,8 +39,8 @@ static int check_node_list_equality(int start_index)
     struct node_list *n1 = &node_list;
     int found = 0;
     list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
-        for (int i = 0, index = start_index; i<nb_nodees; i++, index = (index + 1)%6) {
-            if (n1->node.port, all_nodes[index].port) {
+        for (int i = 0, index = start_index%6; i<nb_nodees; i++, index = (index + 1)%6) {
+            if (node_equal(&n1->node, all_nodes + index)) {
                 found = 1;
                 break;
             }
