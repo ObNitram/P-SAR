@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "network/network.h"
 #include "core/sigaction_handler.h"
@@ -14,7 +15,8 @@
 #include "network/message.h"
 #include "utils/utils.h"
 #include "utils/logger.h"
-#include "INFO_DSM_message.h"
+#include "library_messages.h"
+#include "Naimi_Trehel.h"
 
 #define LOCALHOST "127.0.0.1"
 
@@ -23,10 +25,10 @@
     to disable it just 'unset LIBRARY_DEBUG'
 */
 #ifdef LIBRARY_DEBUG
-    #include "../utils/logger.h"
+    #include "utils/logger.h"
     #define LOG_LIBRARY(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-    #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) ensure_error(condition, fmr, ##__VA_ARGS__)
-    #define ENSURE_WARNING_LIBRARY(condition, fmt, ...) ensure_warning(condition, fmr, ##__VA_ARGS__)
+    #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) ensure_error(condition, fmt, ##__VA_ARGS__)
+    #define ENSURE_WARNING_LIBRARY(condition, fmt, ...) ensure_warning(condition, fmt, ##__VA_ARGS__)
 #else
     #define LOG_LIBRARY(fmt, ...)
     #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) 0

@@ -15,24 +15,16 @@ static const char *addr_init = "127.0.0.1";
 static const int init_port = 2451;
 static const int joiner_port = 4321;
 static const int nb_pages_ = 10;
-static const int nb_nodes_ = 5;
+static const int nb_nodes_ = 1;
 
 // the final node_list of JOINER
 static struct node_id node_list_joiner[5] = {
     {.host = "127.0.0.1", .port =init_port}, 
-    {.host = "127.0.0.1", .port =init_port + 17},
-    {.host = "127.0.0.1", .port =init_port + 7},
-    {.host = "127.0.0.1", .port =init_port + 5}, 
-    {.host = "127.0.0.1", .port =init_port + 4}, 
 };
 
 // the final node_list of init
 static struct node_id node_list_init[5] = {
     {.host = "127.0.0.1", .port =joiner_port}, 
-    {.host = "127.0.0.1", .port =init_port + 4}, 
-    {.host = "127.0.0.1", .port =init_port + 5}, 
-    {.host = "127.0.0.1", .port =init_port + 7},
-    {.host = "127.0.0.1", .port =init_port + 17},
 };
 
 #define SIZE_DSM 40960
@@ -42,8 +34,8 @@ static int check_node_list_equality(struct node_id nodes[]) {
     int found = 0;
     list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
         assert(n1->node.port != -1);
-        for (int i = 0; i<5; i++) {
-            if (n1->node.port == nodes[i].port) {
+        for (int i = 0; i<nb_nodes_; i++) {
+            if (node_equal(&n1->node, nodes)) {
                 found = 1;
                 break;
             }
@@ -73,11 +65,6 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 
 
         ASSERT_EQ(list_empty(&node_list.nlist), 1);
-
-        //we add some nodes
-        for (int i = 4; i>0; i--) {
-            add_to_nodes(&node_list, node_list_init[i].host, node_list_init[i].port);
-        }
 
         struct message * join_mess = wait_message(JOIN_DSM, NULL);
         log_info("message join recved from %d\n", join_mess->sender.port);

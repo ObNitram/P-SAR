@@ -1,7 +1,12 @@
 #include "library.h"
 #include "network/message.h"
 
-static int init_my_node_id() 
+// 1 if we have joined the DSM else 0
+static bool in_dsm;
+static pthread_mutex_t mtx;
+static pthread_cond_t cond;
+
+static int init_my_node_id(void) 
 {
 	nb_nodees = 0;
 	char *ip = get_server_ip();
@@ -15,15 +20,34 @@ static int init_my_node_id()
 	return 0;
 }
 
+static void NEW_NODE_handler(struct message *message) 
+{
+	struct node_id *new_node = &((struct NEW_NODE_message *) message)->new_node;
+	add_to_nodes(&node_list, new_node->host, new_node->port);
+}
+
 static void JOIN_DSM_handler(struct message *message) 
 {
-	size_t sz;
+	// wait until we are in the DSM
+	pthread_mutex_lock(&mtx);
+	while (!in_dsm) 
+		pthread_cond_wait(&cond, &mtx);
+	pthread_mutex_unlock(&mtx);
 
-	struct INFO_DSM_message * dsm_info = build_message(&sz);
+	request_CS();
+
+	struct NEW_NODE_message * msg = build_NEW_NODE_message(&message->sender);
+	broadcast_message((struct message *)msg, sizeof(struct NEW_NODE_message));
+	free_message((struct message *)msg);
+
+	size_t sz = 0;
+	struct INFO_DSM_message *dsm_info = build_INFO_DSM_message(&sz);
 
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(&node_list, message->sender.host, message->sender.port);
 	free_message((struct message *)dsm_info);
+
+	release_CS();
 }
 
 static void INFO_DSM_handler(struct message *message) 
@@ -41,11 +65,19 @@ static void INFO_DSM_handler(struct message *message)
 	}
 
 	init_data_transfer(nb_pages, n);
+
+	// we joined the DSM notify if there is some waiting requests
+	pthread_mutex_lock(&mtx);
+	in_dsm = 1;
+	pthread_cond_signal(&cond);
+	pthread_mutex_unlock(&mtx);
+
 }
 
 static void set_all_handlers(void) 
 {
 	set_sigaction_handler();
+	addHandler(NEW_NODE, NULL, NEW_NODE_handler);
 	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
 	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
 }
@@ -59,8 +91,21 @@ static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (
 	}
 }
 
+static inline void init_internal_data(bool in_dsm_init) {
+	in_dsm = in_dsm_init;
+	pthread_mutex_init(&mtx, NULL);
+	pthread_cond_init(&cond, NULL);
+}
+
+static inline void clear_internal_data(void) {
+	pthread_mutex_destroy(&mtx);
+	pthread_cond_destroy(&cond);
+}
+
 void *Init_DSM(size_t size, const char* interface, int port)
 {
+	init_internal_data(1);
+	init_CS(&EMPTY_NODE, 1);
 	start_server(port, interface);
 	set_all_handlers();
 	
@@ -83,13 +128,15 @@ void *Init_DSM(size_t size, const char* interface, int port)
 	return dsm;
 }
 
-void free_DSM() 
+void free_DSM(void) 
 {
 	munmap(dsm, nb_pages * PAGE_SIZE);
+	clear_internal_data();
 }
 
 void *join_DSM(const char *host, int connect_port, const char *interface, int server_port)
 {
+	init_internal_data(0);
 	size_t msg_sz = sizeof(struct message);
 
 	start_server(server_port, interface);
@@ -99,16 +146,18 @@ void *join_DSM(const char *host, int connect_port, const char *interface, int se
 
 	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
+	init_CS(nd, 0);
 
     struct message mess_joining;
 	mess_joining.message_type = JOIN_DSM;
 	send_message(nd, &mess_joining, msg_sz);
 	
-	struct message *dsm_info = wait_message(INFO_DSM, NULL) ;
+	pthread_mutex_lock(&mtx);
+	while(!in_dsm) {
+		pthread_cond_wait(&cond, &mtx);
+	}
+	pthread_mutex_unlock(&mtx);
 	init_core(nb_pages, nd);
-	
-	free_message(dsm_info);
-
 
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
 		PROT_READ | PROT_WRITE,
