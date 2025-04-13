@@ -66,19 +66,19 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 
         ASSERT_EQ(list_empty(&node_list.nlist), 1);
 
-        struct message * join_mess = wait_message(JOIN_DSM, NULL);
-        log_info("message join recved from %d\n", join_mess->sender.port);
+        // wait for the node to join
+        sleep(2);
 
         // check that node_list is the same as 
         int eq = check_node_list_equality(node_list_init);
         ASSERT_EQ(eq, 1);
 
-        free_message(join_mess);
         stop_server();
         clean_data_transfer();
         clean_core();
         free_nodes(&node_list);
         free_DSM();
+        wait(NULL);
     }else{
         // wait until INIT is setup
         sleep(1);

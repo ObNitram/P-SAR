@@ -110,4 +110,6 @@ TEST(multiple_joins, try_multiple_joiner_at_same_time_to_the_same_node) {
 
     clear_DSM();
 
+    for (int i = 0; i<5; i++) wait(NULL);
+
 }

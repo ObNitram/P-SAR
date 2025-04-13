@@ -85,4 +85,6 @@ TEST(data_transfer_leave, join_then_try_sync_a_page)
     free_nodes(&node_list);
     free_DSM();
 
+    for (int i = 0; i<3; i++) wait(NULL);
+
 }

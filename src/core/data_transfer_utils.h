@@ -29,15 +29,16 @@ static void PAGE_handler(struct message *message) {
     // np => new page | op => old page
     void *addr_np = (void *) (owner + 1);
     void *addr_op = dsm + (*page_id) * PAGE_SIZE;
+    char synching = 0;
 
     pthread_mutex_lock(page_mtx + *page_id);
     node_copy(page_owners + *page_id, owner);
     memcpy(addr_op, addr_np, PAGE_SIZE);
     // if someone is synching we wake him up
-    if (page_state[*page_id]) {
-        signal_page(*page_id);
-    }
+    synching = page_state[*page_id];
     pthread_mutex_unlock(page_mtx + *page_id);
+
+    if (synching) signal_page(*page_id);
     LOG_DATA_TRANS("finished PAGE_HANDLER\n");
 }
 
