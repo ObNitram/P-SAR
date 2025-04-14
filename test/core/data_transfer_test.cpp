@@ -52,7 +52,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
     int eq = 0;
     if (pid) {
         
-        Init_DSM(SIZE_DSM, init_port);
+        Init_DSM(SIZE_DSM, LOCALHOST, init_port);
 
         eq = check_page_owners_equality();
         ASSERT_EQ(eq, 1);
@@ -64,22 +64,22 @@ TEST(data_transfer, join_then_try_sync_a_page)
             *i = *(i - 1) + (i - tab);
         }
 
-        // recved ask page and transfered it
-        struct message * ask_page = wait_message(ASK_PAGE, NULL);
+        // wait te recv an ASK_PAGE request
+        sleep(3);
 
-        log_info("mess mess recved and page transfered\n");
-
-        free_message(ask_page);
         stop_server();
         clean_data_transfer();
         clean_core();
         free_nodes(&node_list);
         free_DSM();
+        wait(NULL);
     }else{
         // wait until INIT is setup
         sleep(1);
 
-        join_DSM(addr_init, init_port, joiner_port);
+        join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
+
+        log_info("joined the DSM\n");
 
         ASSERT_EQ(nb_pages, nb_pages_);
 
@@ -90,7 +90,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
 
         sleep(1);
 
-        sync_page(page_owners, 0);
+        sync_page(0);
 
         log_info("synced page 0\n");
 

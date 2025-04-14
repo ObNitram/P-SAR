@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "network/network.h"
 #include "core/sigaction_handler.h"
@@ -14,17 +15,20 @@
 #include "network/message.h"
 #include "utils/utils.h"
 #include "utils/logger.h"
-#include "INFO_DSM_message.h"
+#include "library_messages.h"
+#include "Naimi_Trehel.h"
+
+#define LOCALHOST "127.0.0.1"
 
 /* 
     if you want to setup the debug mode, you have to ' export LIBRARY_DEBUG '
     to disable it just 'unset LIBRARY_DEBUG'
 */
 #ifdef LIBRARY_DEBUG
-    #include "../utils/logger.h"
+    #include "utils/logger.h"
     #define LOG_LIBRARY(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-    #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) ensure_error(condition, fmr, ##__VA_ARGS__)
-    #define ENSURE_WARNING_LIBRARY(condition, fmt, ...) ensure_warning(condition, fmr, ##__VA_ARGS__)
+    #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) ensure_error(condition, fmt, ##__VA_ARGS__)
+    #define ENSURE_WARNING_LIBRARY(condition, fmt, ...) ensure_warning(condition, fmt, ##__VA_ARGS__)
 #else
     #define LOG_LIBRARY(fmt, ...)
     #define ENSURE_ERROR_LIBRARY(condition, fmt, ...) 0
@@ -36,9 +40,10 @@
 /// This function allocates and initializes a distributed shared memory region for the initial node.
 ///
 /// @param size The size (in bytes) of the shared memory to initialize.
+/// @param interface The interface for binding socket, it ensure that the node have only one id.
 /// @param port The port you use to communicate
 /// @return A pointer to the allocated shared memory region on success, NULL otherwise.
-void *Init_DSM(size_t size, int port);
+void *Init_DSM(size_t size, const char* interface, int port);
 
 void free_DSM(void);
 
@@ -50,9 +55,10 @@ void free_DSM(void);
 ///
 /// @param host The hostname or IP address of the existing node to connect to.
 /// @param connect_port The port of the existing node to connect to.
+/// @param interface The interface for binding socket, it ensure that the node have only one id.
 /// @param server_port The port you listen to add a new node
 /// @return A pointer to the shared memory region.
-void *join_DSM(const char *host, int connect_port, int server_port);
+void *join_DSM(const char *host, int connect_port, const char*interface, int server_port);
 
 
 /// @brief Requests a read lock for the specified memory region.

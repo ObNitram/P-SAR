@@ -12,6 +12,7 @@ struct node_list {
 	struct list_head nlist;
 };
 
+// maybe these global vars should be protected by a mutex ?
 extern struct node_list node_list;
 extern unsigned int nb_nodees;
 extern void *dsm;
@@ -27,27 +28,33 @@ enum message_type {
     GET_LOCK,
     UNLOCK,
     JOIN_DSM, 
-    INFO_DSM, 
+    INFO_DSM,
+    NEW_NODE, 
     ASK_PAGE,
-    RECV_PAGE
+    RECV_PAGE, 
+    RECV_PAGE_LEAVE,
+    DT_LEAVE,
+    ACK_RECV_PAGE,
+    REQUEST_CS,
+    GET_CS
 };
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
-
-int node_equal(struct node_id *node1, struct node_id *node2);
-
-void node_copy(struct node_id *dst, struct node_id *src);
 
 extern void init_nodes(struct node_list *list);
 
 extern struct node_list *add_to_nodes(struct node_list *list, const char *host,
                                       const int port);
 
+extern struct node_list *remove_node(struct node_list *list, struct node_id *node);
+
 extern void free_nodes(struct node_list *list);
 
 extern size_t get_page_index(void *adr);
 
-extern int node_equal(struct node_id *node1, struct node_id *node2);
+extern int node_equal(const struct node_id *node1, const struct node_id *node2);
 
-extern void node_copy(struct node_id* dst, struct node_id *src);
+extern void node_copy(struct node_id *dst, const struct node_id *src);
+
+extern void broadcast_message(struct message *msg, size_t size);
