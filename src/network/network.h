@@ -67,10 +67,10 @@ void send_message(const struct node_id *dest, struct message *message,
 /// @details Sends a message to the specified destination node like the send_message function
 ///			 and wait the given variable condition to be unlock.
 ///			 The variable condition must be manage in the handler with this semantic:
-/// 		 	- lock,
+/// 		 	- lock pthread_mutex,
 ///				- set the predicate to true,
-///				- signal,
-///				- unlock.
+///				- notify the pthread_cond,
+///				- unlock pthread_mutex.
 /// @param dest Pointer to the destination node identifier.
 /// @param message Pointer to the message to be sent.
 /// @param message_size Size of the message in bytes.

@@ -322,13 +322,19 @@ static void handle_UNLOCK(struct message *message)
 
 void init_core(size_t nbpages, struct node_id *have_token)
 {
+	pthread_mutexattr_t Attr;
+	pthread_mutexattr_init(&Attr);
+	pthread_mutexattr_settype(&Attr, PTHREAD_MUTEX_RECURSIVE);
+
 	//create structure sauf si dans page_info
 	core_info = malloc(sizeof(struct core_info) * nbpages);
 	for (int i = 0; i < nbpages; i++) {
 		node_copy(&core_info[i].have_token, have_token);
 		sem_init(&core_info[i].write_auto_lock, 0, 0);
 		INIT_LIST_HEAD(&core_info[i].request);
-		pthread_mutex_init(&core_info[i].cond.lock, NULL);
+		pthread_mutex_init(&core_info[i].cond.lock, &Attr);
+		pthread_cond_init(&core_info[i].cond.cond, NULL);
+		core_info[i].cond.predicate = false;
 	}
 	core_size = nbpages;
 
@@ -341,6 +347,8 @@ static void handle_GET_LOCK(struct message *message)
 {
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info *working_page = core_info + request.page;
+
+	pthread_mutex_lock(&working_page->cond.lock);
 
 	switch (request.mode) {
 	//if mode = WRITE :
@@ -358,6 +366,8 @@ static void handle_GET_LOCK(struct message *message)
 		break;
 	}
 	working_page->cond.predicate = true;
+	pthread_cond_signal(&working_page->cond.cond);
+	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
 void clean_core()

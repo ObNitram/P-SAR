@@ -510,6 +510,7 @@ void send_wait_message(const struct node_id *dest, struct message *message,
 	while (!cond_struct->predicate) {
 		pthread_cond_wait(&cond_struct->cond, &cond_struct->lock);
 	}
+	cond_struct->predicate = false;
 	pthread_mutex_unlock(&cond_struct->lock);
 }
 
