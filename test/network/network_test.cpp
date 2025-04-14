@@ -61,8 +61,6 @@ TEST(network, must_not_receive_if_message_number_is_different)
 
 	addHandler(1, NULL, callBack);
 
-	sleep(1);
-
 	struct message mes = {};
 	mes.message_type = 2;
 

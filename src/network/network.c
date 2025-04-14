@@ -117,7 +117,7 @@ static void *exec_handler(void *arg)
 {
 	struct message *message = (struct message *)arg;
 
-	static void (*callback)(struct message *) = NULL;
+	void (*callback)(struct message *) = NULL;
 
 	pthread_mutex_lock(&callbacks_lock);
 	if (message->message_type < NUMBER_OF_MSG_TYPE &&
