@@ -61,9 +61,7 @@ void sync_page(struct node_id *owner, size_t page_id){
     *index_p = page_id;
     node_copy((struct node_id *) (index_p + 1), &me);
 
-    pthread_mutex_lock(&wait_RECV_PAGE.lock);
     send_wait_message(owner, msg, ms_sz, &wait_RECV_PAGE);
-    pthread_mutex_lock(&wait_RECV_PAGE.lock);
 
     LOG_DATA_TRANS("synced page %zu\n", page_id);
     free_message(msg);

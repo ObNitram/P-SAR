@@ -41,16 +41,12 @@ static size_t buffer_size;
 
 int epollfd;
 
-
 //return the sock or -1 if not found
 static int find_connection(const struct node_id *node)
 {
 	pthread_mutex_lock(&con_buff_lock);
 	for (int i = 0; i < buffer_size; i++) {
 		if (node_equal(&connection_buffer[i].node, node)) {
-			log_info("find node %s:%d",
-				 connection_buffer[i].node.host,
-				 connection_buffer[i].node.port);
 			int sock = connection_buffer[i].sockfd;
 			pthread_mutex_unlock(&con_buff_lock);
 			return sock;
@@ -76,13 +72,12 @@ static int add_connection(const struct node_id node, const int socket)
 	buffer_size++;
 	if (connection_buffer) {
 		connection_buffer =
-		realloc(connection_buffer,
-			sizeof(struct connection_entry) * buffer_size);
-	}else {
+			realloc(connection_buffer,
+				sizeof(struct connection_entry) * buffer_size);
+	} else {
 		connection_buffer =
-		malloc(sizeof(struct connection_entry) * buffer_size);
+			malloc(sizeof(struct connection_entry) * buffer_size);
 	}
-	
 
 	connection_buffer[buffer_size - 1].node = node;
 	connection_buffer[buffer_size - 1].sockfd = socket;
@@ -92,17 +87,17 @@ static int add_connection(const struct node_id node, const int socket)
 }
 
 //return 0 on success and -1 on error
-static int replace_socket(const struct node_id *node, const int socket){
+static int replace_socket(const struct node_id *node, const int socket)
+{
 	int i = 0;
 	for (i = 0; i < buffer_size; i++) {
 		if (node_equal(&connection_buffer[i].node, node)) {
-			if (fcntl(connection_buffer[i].sockfd, F_GETFL) < 0 && errno == EBADF) {
-				log_info("replace connection");
+			if (fcntl(connection_buffer[i].sockfd, F_GETFL) < 0 &&
+			    errno == EBADF) {
 				connection_buffer[i].sockfd = socket;
 				break;
 			}
 			pthread_mutex_unlock(&con_buff_lock);
-			log_info("the socket is valid");
 			return -1;
 		}
 	}
@@ -114,11 +109,26 @@ static void *exec_handler(void *arg)
 {
 	struct message *message = (struct message *)arg;
 
-	if (callbacks[message->message_type] != NULL) {
+	if (message->message_type < NUMBER_OF_MSG_TYPE && callbacks[message->message_type] != NULL) {
 		callbacks[message->message_type](message);
 	}
 	free(message);
 	return NULL;
+}
+
+//return the size recv or -1 on failure
+static int Recv_all(const int sock, void *data, const size_t size)
+{
+	int seek = 0;
+	int ret = 0;
+	do {
+		ret = recv(sock, data + seek, size - seek, 0);
+		if (ret == 0 && seek == 0) break;
+		if (ret == -1)
+			return -1;
+		seek += ret;
+	} while ((size - seek) > 0);
+	return seek;
 }
 
 void *server_thread(void *arg)
@@ -130,6 +140,8 @@ void *server_thread(void *arg)
 		perror("socket");
 		return NULL;
 	}
+
+	struct epoll_event ev, events[MAX_EVENT];
 
 	//this block initiate the server so all local var wont be used in the next
 	{
@@ -177,33 +189,31 @@ void *server_thread(void *arg)
 			  INET6_ADDRSTRLEN);
 		me.port = ntohs(serveraddr.sin_port);
 
+		epollfd = epoll_create1(0);
+		if (epollfd < 0) {
+			perror("epoll");
+			close(listen_sock);
+			return NULL;
+		}
+
+		ev.events = EPOLLIN;
+		ev.data.fd = listen_sock;
+
+		if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listen_sock, &ev) == -1) {
+			perror("epollctl");
+			close(listen_sock);
+			close(epollfd);
+			return NULL;
+		}
+
+		server_is_running = true;
+
 		//wakeup main thread
 		pthread_mutex_lock(&param->server_ready.lock);
 		param->server_ready.predicate = true;
 		pthread_cond_signal(&param->server_ready.cond);
 		pthread_mutex_unlock(&param->server_ready.lock);
 	}
-
-	epollfd = epoll_create1(0);
-	if (epollfd < 0) {
-		perror("epoll");
-		close(listen_sock);
-		return NULL;
-	}
-
-	struct epoll_event ev, events[MAX_EVENT];
-
-	ev.events = EPOLLIN;
-	ev.data.fd = listen_sock;
-
-	if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listen_sock, &ev) == -1) {
-		perror("epollctl");
-		close(listen_sock);
-		close(epollfd);
-		return NULL;
-	}
-
-	server_is_running = true;
 
 	while (server_is_running) {
 		//this epoll_wait must be the only cancelation point of the server
@@ -243,30 +253,36 @@ void *server_thread(void *arg)
 					close(conn_sock);
 					continue;
 				}
+
 			} else {
 				//if not an accept receive message
 				size_t message_size = 0;
-				if (recv(events[i].data.fd, &message_size,
-					 sizeof(message_size),
-					 0) != sizeof(message_size)) {
-					perror("read");
+
+				int ret = Recv_all(events[i].data.fd, &message_size,
+					sizeof(message_size));
+				if (ret == -1) {
+					perror("read size");
+					close(events[i].data.fd);
+					continue;
+				}
+
+				if (ret == 0) {
 					close(events[i].data.fd);
 					continue;
 				}
 
 				struct message *message = malloc(message_size);
-				if (recv(events[i].data.fd, (char *)message,
-					 message_size, 0) < 0) {
-					perror("read");
+				if (Recv_all(events[i].data.fd, (char *)message,
+					     message_size) == -1) {
+					perror("read data");
 					close(events[i].data.fd);
 					continue;
 				}
 
-				log_info("receive data %lu",
-					 message->message_type);
+				if (message->message_type >= NUMBER_OF_MSG_TYPE) continue;
 
-				// now we can add node using sende of message
-				add_connection(message->sender, events[i].data.fd);
+				add_connection(message->sender,
+					       events[i].data.fd);
 
 				pthread_t handler;
 				pthread_create(&handler, NULL, exec_handler,
@@ -321,9 +337,11 @@ void stop_server()
 	if (inet_pton(AF_INET, me.host, &serv_addr.sin_addr) <= 0) {
 		// kill thread
 	}
+
 	connect(poisonous_sock, (struct sockaddr *)&serv_addr,
 		sizeof(serv_addr));
 	close(poisonous_sock);
+
 
 	pthread_join(server_thread_id, NULL);
 
@@ -338,7 +356,7 @@ void stop_server()
 
 	buffer_size = 0;
 	free(connection_buffer);
-	
+
 	log_info("server is stop");
 }
 
@@ -411,9 +429,6 @@ void send_message(const struct node_id *dest, struct message *message,
 		if (send_message_internal(sock, message, message_size) != -1) {
 			return;
 		}
-		log_info("error with the current sock");
-	}else {
-		log_info("no connection found");
 	}
 
 	// new connection if not found or if fail to send
@@ -451,13 +466,11 @@ void send_message(const struct node_id *dest, struct message *message,
 	}
 
 	if (sock == -1) {
-		log_info("send add new node %s:%d", dest->host, dest->port);
-		if(add_connection(*dest, sockfd) != 0){
+		if (add_connection(*dest, sockfd) != 0) {
 			close(sockfd);
 		}
 	} else {
-		log_info("try to retablish connection");
-		if(replace_socket(dest, sockfd) == -1){
+		if (replace_socket(dest, sockfd) == -1) {
 			close(sockfd);
 		}
 	}
