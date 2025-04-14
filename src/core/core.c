@@ -67,7 +67,7 @@ static inline struct request *find_last_writer(struct core_info *working_page)
 {
 	struct request *last_writer;
 	list_for_each_entry_reverse(last_writer, &working_page->request, next) {
-		if (last_writer->mode == WRITING)
+		if (last_writer->mode == WRITE)
 			return last_writer;
 	}
 	return NULL;
@@ -149,7 +149,7 @@ static void handle_local_UNLOCK(int page_id, struct node_id *from)
 		struct request *first = list_first_entry(&working_page->request,
 							 struct request, next);
 		//if first_request = (WRITE, q) :
-		if (first->mode == WRITING) {
+		if (first->mode == WRITE) {
 			//if q != i
 			if (!node_equal(&first->who, &me)) {
 				//send(<GET_LOCK,i,WRITE>) to write_request
@@ -180,7 +180,7 @@ void unlock(size_t page_id, enum lock_type lock_type)
 			struct request *first = list_first_entry(
 				&working_page->request, struct request, next);
 			//if first_request = READ :
-			if (first->mode == READING) {
+			if (first->mode == READ) {
 				// send <GET_LOCK, i, READ> to all request until WRITE
 				struct slsm_message request;
 				request.message_type = GET_LOCK;
@@ -191,7 +191,7 @@ void unlock(size_t page_id, enum lock_type lock_type)
 				struct request *c;
 				list_for_each_entry(c, &working_page->request,
 						    next) {
-					if (c->mode == WRITING)
+					if (c->mode == WRITE)
 						break;
 					send_message(
 						&c->who,
@@ -199,7 +199,7 @@ void unlock(size_t page_id, enum lock_type lock_type)
 						sizeof(struct slsm_message));
 				}
 				//else if first_request = WRITE
-			} else if (first->mode == WRITING) {
+			} else if (first->mode == WRITE) {
 				//send <GET_LOCK, i, WRITE> to first_request
 				send_slsm_message(GET_LOCK, &first->who, WRITE,
 						  page_id);
