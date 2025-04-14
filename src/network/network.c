@@ -41,7 +41,9 @@ static size_t buffer_size;
 
 int epollfd;
 
-//return the sock or -1 if not found
+/// @brief Search for a given node if a socket is in the connection_buffer cache.
+/// @param node Pointer to the node identifier to search.
+/// @return The socket associated to this node or -1 if not found.
 static int find_connection(const struct node_id *node)
 {
 	pthread_mutex_lock(&con_buff_lock);
@@ -56,7 +58,10 @@ static int find_connection(const struct node_id *node)
 	return -1;
 }
 
-// return 0 on push or the socket already save at this node
+/// @brief Add the tuple node/key to the connection_buffer cache.
+/// @param node The node to add as a key.
+/// @param socket The socket associated to the node.
+/// @return 0 on success or -1 entry already exist.
 static int add_connection(const struct node_id node, const int socket)
 {
 	pthread_mutex_lock(&con_buff_lock);
@@ -86,7 +91,10 @@ static int add_connection(const struct node_id node, const int socket)
 	return 0;
 }
 
-//return 0 on success and -1 on error
+/// @brief Replace the socket associated to the given node in the connection_buffer cache.
+/// @param node The node to search.
+/// @param socket The new socket to replace.
+/// @return 0 on success or -1 if socket is valid.
 static int replace_socket(const struct node_id *node, const int socket)
 {
 	int i = 0;
@@ -109,21 +117,34 @@ static void *exec_handler(void *arg)
 {
 	struct message *message = (struct message *)arg;
 
-	if (message->message_type < NUMBER_OF_MSG_TYPE && callbacks[message->message_type] != NULL) {
-		callbacks[message->message_type](message);
+	static void (*callback)(struct message *) = NULL;
+
+	pthread_mutex_lock(&callbacks_lock);
+	if (message->message_type < NUMBER_OF_MSG_TYPE &&
+	    callbacks[message->message_type] != NULL) {
+		callback = callbacks[message->message_type];
 	}
+	pthread_mutex_unlock(&callbacks_lock);
+
+	if (callback != NULL)
+		callback(message);
 	free(message);
 	return NULL;
 }
 
-//return the size recv or -1 on failure
+/// @brief Receive N byte of data on the given socket, protect to signal.
+/// @param sock The socket to read.
+/// @param data the data to write data, it must be initialize before with the given size.
+/// @param size The size to read in the socket.
+/// @return the size read or -1 on failure, a size of 0 means the end of communication on this socket.
 static int Recv_all(const int sock, void *data, const size_t size)
 {
 	int seek = 0;
 	int ret = 0;
 	do {
 		ret = recv(sock, data + seek, size - seek, 0);
-		if (ret == 0 && seek == 0) break;
+		if (ret == 0 && seek == 0)
+			break;
 		if (ret == -1)
 			return -1;
 		seek += ret;
@@ -146,7 +167,7 @@ void *server_thread(void *arg)
 	//this block initiate the server so all local var wont be used in the next
 	{
 		//this will only work because main thread is waiting
-		// after notify interface will be lost => access to it will segfault
+		// after notify the main thread, param will be lost => access to it will segfault
 		struct thread_args *param = (struct thread_args *)arg;
 
 		struct sockaddr_in serveraddr = { 0 };
@@ -217,7 +238,7 @@ void *server_thread(void *arg)
 
 	while (server_is_running) {
 		//this epoll_wait must be the only cancelation point of the server
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+		// pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
 		//wait event on epoll => pwait and mask signal ??
 		int nevents = epoll_wait(epollfd, events, MAX_EVENT, -1);
@@ -226,7 +247,7 @@ void *server_thread(void *arg)
 			break;
 		}
 
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+		// pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
 		for (int i = 0; i < nevents; i++) {
 			//if event on listen_sock then accept connection
@@ -258,8 +279,9 @@ void *server_thread(void *arg)
 				//if not an accept receive message
 				size_t message_size = 0;
 
-				int ret = Recv_all(events[i].data.fd, &message_size,
-					sizeof(message_size));
+				int ret = Recv_all(events[i].data.fd,
+						   &message_size,
+						   sizeof(message_size));
 				if (ret == -1) {
 					perror("read size");
 					close(events[i].data.fd);
@@ -279,7 +301,8 @@ void *server_thread(void *arg)
 					continue;
 				}
 
-				if (message->message_type >= NUMBER_OF_MSG_TYPE) continue;
+				if (message->message_type >= NUMBER_OF_MSG_TYPE)
+					continue;
 
 				add_connection(message->sender,
 					       events[i].data.fd);
@@ -331,17 +354,15 @@ void stop_server()
 
 	const int poisonous_sock = socket(AF_INET, SOCK_STREAM, 0);
 
+	// TODO: kill the thread if poisonous injection fail
 	struct sockaddr_in serv_addr;
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(me.port);
-	if (inet_pton(AF_INET, me.host, &serv_addr.sin_addr) <= 0) {
-		// kill thread
-	}
+	inet_pton(AF_INET, me.host, &serv_addr.sin_addr);
 
 	connect(poisonous_sock, (struct sockaddr *)&serv_addr,
 		sizeof(serv_addr));
 	close(poisonous_sock);
-
 
 	pthread_join(server_thread_id, NULL);
 
@@ -373,6 +394,11 @@ char *get_server_ip()
 	return ip;
 }
 
+/// @brief Send N byte of data on the given socket, protect to signal.
+/// @param sock The socket to send.
+/// @param data the data to write data, it must be initialize before with the given size.
+/// @param size The size of data to send in the socket.
+/// @return 0 on success or -1 on failure.
 static int send_all(const int sockfd, const char *data, const size_t size)
 {
 	int seek = 0;
@@ -396,7 +422,6 @@ static int send_message_internal(int sockfd, struct message *message,
 		return -1;
 	}
 
-	// send msg
 	if (send_all(sockfd, (char *)message, message_size) == -1) {
 		perror("send data");
 		close(sockfd);
@@ -491,5 +516,7 @@ void send_wait_message(const struct node_id *dest, struct message *message,
 void addHandler(const size_t message_type, struct node_id *sender,
 		void callBack(struct message *message))
 {
+	pthread_mutex_lock(&callbacks_lock);
 	callbacks[message_type] = callBack;
+	pthread_mutex_unlock(&callbacks_lock);
 }

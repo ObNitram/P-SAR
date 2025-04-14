@@ -63,14 +63,20 @@ char *get_server_ip();
 void send_message(const struct node_id *dest, struct message *message,
 		  size_t message_size);
 
-/// @brief Waits for a message of a specific type.
-/// @details This function blocks until a message of the specified type is received.
-///          If the sender parameter is NULL, it waits for a message from any sender.
-/// @param message_type The type of message to wait for.
-/// @param sender Pointer to the node identifier of the expected sender, or NULL to accept any sender.
-/// @return A pointer to a dynamically allocated struct message containing the received message details.
-///         The caller is responsible for freeing the memory.
-struct message *wait_message(size_t message_type, struct node_id *sender);
+/// @brief Sends a message to a specified destination node and wait for handler
+/// @details Sends a message to the specified destination node like the send_message function
+///			 and wait the given variable condition to be unlock.
+///			 The variable condition must be manage in the handler with this semantic:
+/// 		 	- lock,
+///				- set the predicate to true,
+///				- signal,
+///				- unlock.
+/// @param dest Pointer to the destination node identifier.
+/// @param message Pointer to the message to be sent.
+/// @param message_size Size of the message in bytes.
+/// @param cond_struct Pointer to the variable condition to wait
+void send_wait_message(const struct node_id *dest, struct message *message,
+		       size_t message_size, struct cond_var *cond_struct);
 
 /// @brief Adds a handler for messages of a specific type.
 /// @details Registers a callback function that will be invoked when a message of the specified type is received.
@@ -80,6 +86,3 @@ struct message *wait_message(size_t message_type, struct node_id *sender);
 /// @param callBack The callback function to be invoked when the message is received.
 void addHandler(size_t message_type, struct node_id *sender,
 		void callBack(struct message *message));
-
-void send_wait_message(const struct node_id *dest, struct message *message,
-		       size_t message_size, struct cond_var *cond_struct);
