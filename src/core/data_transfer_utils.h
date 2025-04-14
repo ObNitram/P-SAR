@@ -32,7 +32,13 @@ static void PAGE_handler(struct message *message) {
     char synching = 0;
 
     pthread_mutex_lock(page_mtx + *page_id);
-    node_copy(page_owners + *page_id, owner);
+    // if it's a page that we asked or 
+    //the owner of that page that informs us about the new
+    // owner, we copy the new owner
+    if (message->message_type == RECV_PAGE ||
+                node_equal(&message->sender, page_owners + *page_id)) {
+        node_copy(page_owners + *page_id, owner);
+    }
     memcpy(addr_op, addr_np, PAGE_SIZE);
     // if someone is synching we wake him up
     synching = page_state[*page_id];
