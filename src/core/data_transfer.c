@@ -5,6 +5,10 @@
 
 struct node_id *page_owners;
 
+void set_new_owner(size_t page_id, struct node_id *new_owner) {
+    node_copy(page_owners + page_id, new_owner);
+}
+
 static void RECV_PAGE_handler(struct message *message) {
     size_t *page_id = (size_t *) (message + 1);
     void *addr_np = (void *) (page_id + 1);

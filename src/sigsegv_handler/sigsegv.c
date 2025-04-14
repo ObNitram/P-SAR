@@ -114,7 +114,7 @@ static void sigsev_handler(int sig, siginfo_t * info, void * ucontext) {
     // And the handler will be run once again... The circle of life. Beautiful.
 
     if (curr_writing && lock_status == WRITING) {
-        node_copy(page_owners + page_index, &me);
+        set_new_owner(page_index, &me);
         send_invalidation(page_index);
     }
 }
@@ -123,7 +123,7 @@ static void sigsev_handler(int sig, siginfo_t * info, void * ucontext) {
 static void INVALIDATION_handler(struct message *msg) {
     size_t *page_id = (size_t *) (msg + 1);
     memory_lock(*page_id);
-    node_copy(page_owners + *page_id, &msg->sender);
+    set_new_owner(*page_id, &msg->sender);
 }
 
 void * init_sigsegv(void * dsm, size_t size, bool is_owner) {
