@@ -163,7 +163,6 @@ static void handle_local_UNLOCK(int page_id, struct node_id *from)
 
 void unlock(size_t page_id, enum lock_type lock_type)
 {
-    memory_lock(page_id);
 	struct core_info *working_page = core_info + page_id;
 
 	pthread_mutex_lock(&working_page->mutex);

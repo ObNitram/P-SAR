@@ -44,7 +44,7 @@ static void INFO_DSM_handler(struct message *message)
 	init_data_transfer(nb_pages, n);
 }
 
-static void set_all_handlers() 
+static void set_all_handlers(void)
 {
 	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
 	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
@@ -55,6 +55,7 @@ static void exclude_others(void *adr, size_t s, enum lock_type lock_type, void (
 	size_t start_index = get_page_index(adr);
 	size_t end_index = get_page_index(adr + s - 1);
 	for (size_t page_id = start_index; page_id <= end_index; page_id++) {
+        memory_lock(page_id);
 		exc_func(page_id, lock_type);
 	}
 }
@@ -144,5 +145,6 @@ void lock_write(void *adr, size_t s)
 
 void unlock_write(void *adr, size_t s)
 {
+
 	exclude_others(adr, s, WRITE, unlock);
 }
