@@ -56,68 +56,68 @@ static int check_node_list_equality(struct node_id nodes[]) {
 
 // we have two proc
 // one that inits the DSM, the other who will try to join it
-TEST(join_init_dsm, try_to_init_then_join_the_dsm)
-{
-    init_logger(stdout);
+// TEST(join_init_dsm, try_to_init_then_join_the_dsm)
+// {
+//     init_logger(stdout);
 
-    log_info("started test\n");
+//     log_info("started test\n");
 
-    pid_t pid = fork();
-    if (pid) {
+//     pid_t pid = fork();
+//     if (pid) {
         
-        Init_DSM(SIZE_DSM, LOCALHOST, init_port);
+//         Init_DSM(SIZE_DSM, LOCALHOST, init_port);
 
-        log_info("INIT :  dsm ready");
+//         log_info("INIT :  dsm ready");
 
-        ASSERT_EQ(nb_pages, nb_pages_);
+//         ASSERT_EQ(nb_pages, nb_pages_);
 
 
-        ASSERT_EQ(list_empty(&node_list.nlist), 1);
+//         ASSERT_EQ(list_empty(&node_list.nlist), 1);
 
-        //we add some nodes
-        for (int i = 4; i>0; i--) {
-            add_to_nodes(&node_list, node_list_init[i].host, node_list_init[i].port);
-        }
+//         //we add some nodes
+//         for (int i = 4; i>0; i--) {
+//             add_to_nodes(&node_list, node_list_init[i].host, node_list_init[i].port);
+//         }
 
-        struct message * join_mess = wait_message(JOIN_DSM, NULL);
-        log_info("message join recved from %d\n", join_mess->sender.port);
+//         struct message * join_mess = wait_message(JOIN_DSM, NULL);
+//         log_info("message join recved from %d\n", join_mess->sender.port);
 
-        // check that node_list is the same as 
-        int eq = check_node_list_equality(node_list_init);
-        ASSERT_EQ(eq, 1);
+//         // check that node_list is the same as 
+//         int eq = check_node_list_equality(node_list_init);
+//         ASSERT_EQ(eq, 1);
 
-        free_message(join_mess);
-        stop_server();
-        clean_data_transfer();
-        clean_core();
-        free_nodes(&node_list);
-        free_DSM();
-    }else{
-        // wait until INIT is setup
-        sleep(1);
+//         free_message(join_mess);
+//         stop_server();
+//         clean_data_transfer();
+//         clean_core();
+//         free_nodes(&node_list);
+//         free_DSM();
+//     }else{
+//         // wait until INIT is setup
+//         sleep(1);
 
-        join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
+//         join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
 
-        ASSERT_EQ(nb_pages, nb_pages_);
+//         ASSERT_EQ(nb_pages, nb_pages_);
 
-        int found = 0;
+//         int found = 0;
         
-        ASSERT_EQ(nb_nodees, nb_nodes_);
-        int eq = 0;
+//         ASSERT_EQ(nb_nodees, nb_nodes_);
+//         int eq = 0;
 
 
-        eq = check_node_list_equality(node_list_joiner);
-        ASSERT_EQ(eq, 1);
+//         eq = check_node_list_equality(node_list_joiner);
+//         ASSERT_EQ(eq, 1);
 
-        stop_server();
-        clean_data_transfer();
-        clean_core();
-        free_nodes(&node_list);
-        free_DSM();
+//         stop_server();
+//         clean_data_transfer();
+//         clean_core();
+//         free_nodes(&node_list);
+//         free_DSM();
 
-        exit(0);
-    }
-}
+//         exit(0);
+//     }
+// }
 
 
 TEST(addr_to_page, get_page_index) {

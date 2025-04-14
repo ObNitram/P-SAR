@@ -1,16 +1,25 @@
 #include "data_transfer.h"
 #include "../utils/utils.h"
 #include "../core/core.h"
+#include "network/cond_var.h"
+#include <pthread.h>
 #include <stdlib.h>
 
 struct node_id *page_owners;
 
+static struct cond_var wait_RECV_PAGE = COND_VAR_INIT;
 static void RECV_PAGE_handler(struct message *message) {
+    pthread_mutex_lock(&wait_RECV_PAGE.lock);
+
     size_t *page_id = (size_t *) (message + 1);
     void *addr_np = (void *) (page_id + 1);
     void *addr_p = dsm + (*page_id) * PAGE_SIZE;
     node_copy(page_owners + *page_id, &message->sender);
     memcpy(addr_p, addr_np, PAGE_SIZE);
+
+    wait_RECV_PAGE.predicate = true;
+    pthread_cond_signal(&wait_RECV_PAGE.cond);
+    pthread_mutex_unlock(&wait_RECV_PAGE.lock);
 }
 
 static void transfer_page(struct node_id *requester, size_t page_id) {
@@ -51,8 +60,11 @@ void sync_page(struct node_id *owner, size_t page_id){
     size_t * index_p = (size_t *) (msg + 1);
     *index_p = page_id;
     node_copy((struct node_id *) (index_p + 1), &me);
-    send_message(owner, msg, ms_sz);
-    free_message(wait_message(RECV_PAGE, NULL));
+
+    pthread_mutex_lock(&wait_RECV_PAGE.lock);
+    send_wait_message(owner, msg, ms_sz, &wait_RECV_PAGE);
+    pthread_mutex_lock(&wait_RECV_PAGE.lock);
+
     LOG_DATA_TRANS("synced page %zu\n", page_id);
     free_message(msg);
 }

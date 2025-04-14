@@ -3,6 +3,7 @@
 #include "../network/message.h"
 #include "../network/network.h"
 #include "../utils/list.h"
+#include "network/cond_var.h"
 #include <stdlib.h>
 #include <semaphore.h>
 #include <pthread.h>
@@ -25,7 +26,7 @@ struct core_info {
 	struct list_head request;
 	struct node_id have_token;
 	sem_t write_auto_lock;
-	pthread_mutex_t mutex;
+	struct cond_var cond;
 };
 
 static struct core_info *core_info;
@@ -87,62 +88,56 @@ static inline void send_slsm_message(enum message_type msgt,
 		     sizeof(struct slsm_message));
 }
 
+static inline void send_wait_slsm_message(enum message_type msgt,
+					  struct node_id *sender,
+					  enum lock_type m, size_t pid,
+					  struct cond_var *cond)
+{
+	struct slsm_message request = {
+		.message_type = msgt,
+		.initiator = me,
+		.mode = m,
+		.page = pid,
+	};
+	send_wait_message(sender, (struct message *)&request,
+			  sizeof(struct slsm_message), cond);
+}
+
 void ask_lock(size_t page_id, enum lock_type request_mode)
 {
 	struct core_info *working_page = core_info + page_id;
 
-	pthread_mutex_lock(&working_page->mutex);
+	pthread_mutex_lock(&working_page->cond.lock);
 
 	//mode <- lock_type
 	working_page->mode = (enum lock_status)request_mode;
 	//if have_token = i :
 	if (node_equal(&working_page->have_token, &me)) {
 		//if request != {} V mode = READ:
-		if (!list_empty(&working_page->request) || request_mode == READ) {
+		if (!list_empty(&working_page->request) ||
+		    request_mode == READ) {
 			//request <- request U {i}
 			add_request(working_page, &me, request_mode);
 			//if mode = WRITE :
 			if (request_mode == WRITE) {
-				pthread_mutex_unlock(&working_page->mutex);
+				pthread_mutex_unlock(&working_page->cond.lock);
 				//wait first_request = (WRITE, i)
 				sem_wait(&working_page->write_auto_lock);
-				pthread_mutex_lock(&working_page->mutex);
+				pthread_mutex_lock(&working_page->cond.lock);
 			}
 		}
 	} else {
 		//send(<ASK_LOCK, i, mode>) to have_token
-		send_slsm_message(ASK_LOCK, &working_page->have_token, request_mode,
-				  page_id);
-
-		pthread_mutex_unlock(&working_page->mutex);
-		//wait(<GET_LOCK, j, mode>) from j
-		struct slsm_message *response =
-			(struct slsm_message *)wait_message(GET_LOCK, NULL);
-
-		pthread_mutex_lock(&working_page->mutex);
-
-		switch (request_mode) {
-		//if mode = WRITE :
-		case WRITE:
-			//have_token <- i
-			node_copy(&working_page->have_token, &me);
-			break;
-		//if mode = READ :
-		case READ:
-			//have_token <- j
-			node_copy(&working_page->have_token, &response->sender);
-			break;
-		default:
-			// log erreur should not be possible
-			break;
-		}
+		send_wait_slsm_message(ASK_LOCK, &working_page->have_token,
+				       request_mode, page_id,
+				       &working_page->cond);
 	}
-	pthread_mutex_unlock(&working_page->mutex);
+	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
 static void handle_local_UNLOCK(int page_id, struct node_id *from)
 {
-	struct core_info *working_page = core_info+page_id;
+	struct core_info *working_page = core_info + page_id;
 	//read_request <- read_request / {j}
 	remove_request(working_page, from);
 	if (!list_empty(&working_page->request)) {
@@ -171,7 +166,7 @@ void unlock(size_t page_id, enum lock_type lock_type)
 {
 	struct core_info *working_page = core_info + page_id;
 
-	pthread_mutex_lock(&working_page->mutex);
+	pthread_mutex_lock(&working_page->cond.lock);
 
 	switch (working_page->mode) {
 	//if mode = WRITE :
@@ -230,7 +225,7 @@ void unlock(size_t page_id, enum lock_type lock_type)
 	//mode <- NONE
 	working_page->mode = NONE;
 
-	pthread_mutex_unlock(&working_page->mutex);
+	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
 static void handle_ASK_LOCK(struct message *message)
@@ -238,7 +233,7 @@ static void handle_ASK_LOCK(struct message *message)
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info *working_page = core_info + request.page;
 
-	pthread_mutex_lock(&working_page->mutex);
+	pthread_mutex_lock(&working_page->cond.lock);
 
 	struct request *last_writer = find_last_writer(working_page);
 
@@ -260,16 +255,17 @@ static void handle_ASK_LOCK(struct message *message)
 				//if m == WRITE :
 				if (request.mode == WRITE) {
 					//if request = {}
-					if (list_empty(&working_page->request)) {
+					if (list_empty(
+						    &working_page->request)) {
 						//send(<GET_LOCK, i, WRITE>) to j
 						send_slsm_message(
 							GET_LOCK,
 							&request.initiator,
 							WRITE, request.page);
 						//have_token <- j
-						node_copy(
-							&working_page->have_token,
-							&request.initiator);
+						node_copy(&working_page
+								   ->have_token,
+							  &request.initiator);
 						//else :
 					} else {
 						//request <- request U {j}
@@ -311,7 +307,7 @@ static void handle_ASK_LOCK(struct message *message)
 				     sizeof(struct slsm_message));
 		}
 	}
-	pthread_mutex_unlock(&working_page->mutex);
+	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
 static void handle_UNLOCK(struct message *message)
@@ -319,9 +315,9 @@ static void handle_UNLOCK(struct message *message)
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info *working_page = core_info + request.page;
 
-	pthread_mutex_lock(&working_page->mutex);
+	pthread_mutex_lock(&working_page->cond.lock);
 	handle_local_UNLOCK(request.page, &request.sender);
-	pthread_mutex_unlock(&working_page->mutex);
+	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
 void init_core(size_t nbpages, struct node_id *have_token)
@@ -332,7 +328,7 @@ void init_core(size_t nbpages, struct node_id *have_token)
 		node_copy(&core_info[i].have_token, have_token);
 		sem_init(&core_info[i].write_auto_lock, 0, 0);
 		INIT_LIST_HEAD(&core_info[i].request);
-		pthread_mutex_init(&core_info[i].mutex, NULL);
+		pthread_mutex_init(&core_info[i].cond.lock, NULL);
 	}
 	core_size = nbpages;
 
@@ -341,12 +337,35 @@ void init_core(size_t nbpages, struct node_id *have_token)
 	addHandler(UNLOCK, NULL, handle_UNLOCK);
 }
 
+static void handle_GET_LOCK(struct message *message)
+{
+	struct slsm_message request = *((struct slsm_message *)message);
+	struct core_info *working_page = core_info + request.page;
+
+	switch (request.mode) {
+	//if mode = WRITE :
+	case WRITE:
+		//have_token <- i
+		node_copy(&working_page->have_token, &me);
+		break;
+	//if mode = READ :
+	case READ:
+		//have_token <- j
+		node_copy(&working_page->have_token, &request.sender);
+		break;
+	default:
+		// log erreur should not be possible
+		break;
+	}
+	working_page->cond.predicate = true;
+}
+
 void clean_core()
 {
 	struct request *c, *tmp;
 	for (int i = 0; i < core_size; i++) {
 		sem_destroy(&core_info[i].write_auto_lock);
-		pthread_mutex_destroy(&core_info[i].mutex);
+		pthread_mutex_destroy(&core_info[i].cond.lock);
 		list_for_each_entry_safe(c, tmp, &core_info[i].request, next) {
 			list_del(&c->next);
 			free(c);

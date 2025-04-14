@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include "cond_var.h"
 #include "message.h"
 
 /* 
@@ -18,14 +19,16 @@
     to disable it just 'unset NETWORK_DEBUG'
 */
 #ifdef NETWORK_DEBUG
-    #include "../utils/logger.h"
-    #define LOG_NETWORK(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-    #define ENSURE_ERROR_NETWORK(condition, fmt, ...) ensure_error(condition, fmt, ##__VA_ARGS__)
-    #define ENSURE_WARNING_NETWORK(condition, fmt, ...) ensure_warning(condition, fmt, ##__VA_ARGS__)
+#include "../utils/logger.h"
+#define LOG_NETWORK(fmt, ...) log_info(fmt, ##__VA_ARGS__)
+#define ENSURE_ERROR_NETWORK(condition, fmt, ...) \
+	ensure_error(condition, fmt, ##__VA_ARGS__)
+#define ENSURE_WARNING_NETWORK(condition, fmt, ...) \
+	ensure_warning(condition, fmt, ##__VA_ARGS__)
 #else
-    #define LOG_NETWORK(fmt, ...)
-    #define ENSURE_ERROR_NETWORK(condition, fmt, ...) 0
-    #define ENSURE_WARNING_NETWORK(condition, fmt, ...) 0
+#define LOG_NETWORK(fmt, ...)
+#define ENSURE_ERROR_NETWORK(condition, fmt, ...) 0
+#define ENSURE_WARNING_NETWORK(condition, fmt, ...) 0
 #endif
 
 /// @brief Starts the server on the specified port.
@@ -33,7 +36,7 @@
 ///          This function should be called before attempting to send or receive messages.
 /// @param port The port number on which the server will listen.
 /// @param interface The address on which the socket server will be bind, if NULL then LOCALHOST will be used.
-void start_server(int port, const char* interface);
+void start_server(int port, const char *interface);
 
 /// @brief Stops the running server.
 /// @details Gracefully stops the server by closing all connections and terminating the server thread.
@@ -57,9 +60,8 @@ char *get_server_ip();
 /// @param dest Pointer to the destination node identifier.
 /// @param message Pointer to the message to be sent.
 /// @param message_size Size of the message in bytes.
-void send_message(const struct node_id *dest,
-                  struct message *message,
-                  size_t message_size);
+void send_message(const struct node_id *dest, struct message *message,
+		  size_t message_size);
 
 /// @brief Waits for a message of a specific type.
 /// @details This function blocks until a message of the specified type is received.
@@ -76,6 +78,8 @@ struct message *wait_message(size_t message_type, struct node_id *sender);
 /// @param message_type The type of message for which the handler is registered.
 /// @param sender Pointer to the node identifier of the sender to filter on, or NULL for any sender.
 /// @param callBack The callback function to be invoked when the message is received.
-void addHandler(size_t message_type,
-                struct node_id *sender,
-                void callBack(struct message *message));
+void addHandler(size_t message_type, struct node_id *sender,
+		void callBack(struct message *message));
+
+void send_wait_message(const struct node_id *dest, struct message *message,
+		       size_t message_size, struct cond_var *cond_struct);

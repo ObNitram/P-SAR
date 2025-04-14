@@ -1,5 +1,7 @@
 #include "library.h"
-#include "network/message.h"
+#include "network/cond_var.h"
+#include "network/network.h"
+#include <pthread.h>
 
 static int init_my_node_id() 
 {
@@ -26,8 +28,10 @@ static void JOIN_DSM_handler(struct message *message)
 	free_message((struct message *)dsm_info);
 }
 
+struct cond_var wait_info_dsm = COND_VAR_INIT;
 static void INFO_DSM_handler(struct message *message) 
 {
+	pthread_mutex_lock(&wait_info_dsm.lock);
 	struct INFO_DSM_message *idsm = (struct INFO_DSM_message *)
 										message;
 	nb_pages = idsm->nb_pages;
@@ -41,6 +45,10 @@ static void INFO_DSM_handler(struct message *message)
 	}
 
 	init_data_transfer(nb_pages, n);
+
+	wait_info_dsm.predicate = true;
+	pthread_cond_signal(&wait_info_dsm.cond);
+	pthread_mutex_unlock(&wait_info_dsm.lock);
 }
 
 static void set_all_handlers(void) 
@@ -102,13 +110,10 @@ void *join_DSM(const char *host, int connect_port, const char *interface, int se
 
     struct message mess_joining;
 	mess_joining.message_type = JOIN_DSM;
-	send_message(nd, &mess_joining, msg_sz);
+	send_wait_message(nd, &mess_joining, msg_sz, &wait_info_dsm);
 	
-	struct message *dsm_info = wait_message(INFO_DSM, NULL) ;
 	init_core(nb_pages, nd);
 	
-	free_message(dsm_info);
-
 
 	dsm = mmap(0, nb_pages * PAGE_SIZE, 
 		PROT_READ | PROT_WRITE,
