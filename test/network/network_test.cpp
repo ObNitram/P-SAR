@@ -186,3 +186,56 @@ TEST(network, send_wait_message)
 
 	EXPECT_EQ(counter, 1);
 }
+
+
+struct cond_var handlerception_cond = COND_VAR_INIT;
+void handlerception(struct message *data){
+	pthread_mutex_lock(&handlerception_cond.lock);
+
+	counter++;
+	sleep(1);
+
+	handlerception_cond.predicate = true;
+	pthread_cond_signal(&handlerception_cond.cond);
+	pthread_mutex_unlock(&handlerception_cond.lock);
+}
+
+struct cond_var waiting_handler_cond = COND_VAR_INIT;
+void waiting_handler(struct message *data){
+	pthread_mutex_lock(&waiting_handler_cond.lock);
+
+	counter++;
+	struct message2 message = {};
+	message.message.message_type = 1;
+	message.data = 42;
+	message.data2 = 24;
+	strcpy(message.data3, localhost);
+
+	send_wait_message(&dest, (struct message *)&message, sizeof(message), &handlerception_cond);
+
+	waiting_handler_cond.predicate = true;
+	pthread_cond_signal(&waiting_handler_cond.cond);
+	pthread_mutex_unlock(&waiting_handler_cond.lock);
+}
+
+TEST(network, send_wait_message_in_handler)
+{
+	init_logger(stdout);
+	counter = 0;
+	start_server(5555, localhost);
+
+	addHandler(2, NULL, waiting_handler);
+	addHandler(1, NULL, handlerception);
+
+	struct message2 message = {};
+	message.message.message_type = 2;
+	message.data = 42;
+	message.data2 = 24;
+	strcpy(message.data3, localhost);
+
+	send_wait_message(&dest, (struct message *)&message, sizeof(message), &waiting_handler_cond);
+
+	stop_server();
+
+	EXPECT_EQ(counter, 2);
+}
