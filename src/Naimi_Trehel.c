@@ -1,9 +1,10 @@
 #include "Naimi_Trehel.h"
 
-bool token;
-bool requesting;
-struct node_id father;
-struct node_id next;
+static bool token;
+static bool requesting;
+static bool leaving;
+static struct node_id father;
+static struct node_id next;
 // mutex to manage data race 
 static pthread_mutex_t mtx;
 static pthread_cond_t cond;
@@ -25,6 +26,7 @@ static void send_token(struct node_id *dst) {
 
 static void REQUEST_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
+    if (leaving) goto exit;
     struct node_id *requester = (struct node_id *) (message + 1);
     if (node_equal(&father, &EMPTY_NODE)) {
         if (requesting) {
@@ -37,6 +39,7 @@ static void REQUEST_CS_handler(struct message *message) {
         send_request_to_father(requester);
     }
     node_copy(&father, requester);
+    exit:
     pthread_mutex_unlock(&mtx);
 }
 
@@ -72,17 +75,72 @@ void release_CS() {
     pthread_mutex_unlock(&mtx);
 }
 
-void init_CS(const struct node_id *father_init, bool token_init) {
+static void init_internal_data(const struct node_id *father_init, 
+                               bool token_init, bool requesting_init) {
     token = token_init;
-    requesting = 0;
-    pthread_mutex_init(&mtx, NULL);
-    pthread_cond_init(&cond, NULL);
+    requesting = requesting_init;
+    leaving = 0;
     node_copy(&father, father_init);
     node_copy(&next, &EMPTY_NODE);
+}
+
+static void RESET_CS_handler(struct message *message) {
+    pthread_mutex_lock(&mtx);
+    // we reset the internal data as if we called INIT_CS for the first time
+    init_internal_data(&message->sender, 0, requesting);
+    if (requesting) request_CS();
+    pthread_mutex_unlock(&mtx);
+}
+
+static void NEW_ROOT_CS_handler(struct message *message) {
+    pthread_mutex_lock(&mtx);
+    init_internal_data(&EMPTY_NODE, 1, requesting);
+    if (requesting) {
+        pthread_cond_signal(&cond);
+    }
+    struct message msg = {.message_type = RESET_CS};
+    broadcast_message(&msg, sizeof(struct message));
+    pthread_mutex_unlock(&mtx);
+}
+
+void init_CS(const struct node_id *father_init, bool token_init,
+             bool requesting_init) {
+    init_internal_data(father_init, token_init, requesting_init);
+    pthread_mutex_init(&mtx, NULL);
+    pthread_cond_init(&cond, NULL);
     addHandler(REQUEST_CS, NULL, REQUEST_CS_handler);
     addHandler(GET_CS, NULL, GET_CS_handler);
+    addHandler(RESET_CS, NULL, RESET_CS_handler);
+    addHandler(NEW_ROOT_CS, NULL, NEW_ROOT_CS_handler);
 }
 
 void clear_CS() {
     pthread_mutex_destroy(&mtx);
+    pthread_cond_destroy(&cond);
+}
+
+int leave_CS() {
+    pthread_mutex_lock(&mtx);
+    if (!token) {
+        pthread_mutex_unlock(&mtx);
+        return -1;
+    }
+    struct node_id *new_root = NULL;
+    size_t sz;
+    if (!node_equal(&next, &EMPTY_NODE)) new_root = &next;
+    else new_root =  &list_next_entry(&node_list, nlist)->node;
+
+    // there is no ther person in the network
+    if (new_root->port == -1) goto exit;
+    
+
+    // we just have to inform him, that he is the new root
+    struct message msg = {.message_type = NEW_ROOT_CS};
+    send_message(new_root, &msg, sizeof(struct message));
+    
+    exit :
+        pthread_mutex_unlock(&mtx);
+        clear_CS();
+        return 0;
+
 }

@@ -105,7 +105,7 @@ static inline void clear_internal_data(void) {
 void *Init_DSM(size_t size, const char* interface, int port)
 {
 	init_internal_data(1);
-	init_CS(&EMPTY_NODE, 1);
+	init_CS(&EMPTY_NODE, 1, 0);
 	start_server(port, interface);
 	set_all_handlers();
 	
@@ -146,7 +146,7 @@ void *join_DSM(const char *host, int connect_port, const char *interface, int se
 
 	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
-	init_CS(nd, 0);
+	init_CS(nd, 0, 0);
 
     struct message mess_joining;
 	mess_joining.message_type = JOIN_DSM;

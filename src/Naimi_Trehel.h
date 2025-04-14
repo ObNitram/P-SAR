@@ -23,16 +23,13 @@
     #define ENSURE_WARNING_NT(condition, fmt, ...) 0
 #endif
 
-extern bool token;
-extern bool requesting;
-extern struct node_id father;
-extern struct node_id next;
-
-
 extern void request_CS();
 
 extern void release_CS();
 
-extern void init_CS(const struct node_id *father, bool token);
+void init_CS(const struct node_id *father_init, bool token_init,
+             bool requesting_init);
 
 extern void clear_CS();
+
+extern int leave_CS();
