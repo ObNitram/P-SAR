@@ -29,8 +29,6 @@ void * server_thread(void * arg)
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
 	listen_sock = -1;
-	struct addrinfo hints, *res, *p;
-	int rv;
 	char listen_port[6]; // Listening port (as string)
 	const char *interface = (char *)arg;
 
@@ -38,16 +36,6 @@ void * server_thread(void * arg)
 	serveraddr.sin_family = AF_INET;
 	serveraddr.sin_port = htons(server_port);
 
-	// Set up hints for getaddrinfo for a passive (server) socket.
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
-	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-	hints.ai_flags = AI_PASSIVE; // Use the local IP
-
-	if ((rv = getaddrinfo(NULL, listen_port, &hints, &res)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return NULL;
-    }
 	listen_sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (listen_sock < 0) {
 		perror("socket");
@@ -60,15 +48,6 @@ void * server_thread(void * arg)
 		close(listen_sock);
 		return NULL;
 	}
-
-	if (p == NULL || listen_sock == -1) {
-		fprintf(
-			stderr,
-			"Failed to bind listening socket on port %s\n",
-			listen_port);
-		freeaddrinfo(res);
-		return NULL;
-    }
 
 	// Enable address reuse.
 	int optval = 1;
@@ -268,7 +247,7 @@ void send_message(const struct node_id *dest,
 
 	// Get address information for the destination host and port
 	if ((rv = getaddrinfo(dest->host, port_str, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		fprintf(stderr, "getaddrinfo server_thread: %s\n", gai_strerror(rv));
 		return;
 	}
 

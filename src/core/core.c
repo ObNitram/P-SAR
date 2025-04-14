@@ -3,6 +3,7 @@
 #include "../network/message.h"
 #include "../network/network.h"
 #include "../utils/list.h"
+#include "../sigsegv_handler/sigsegv.h"
 #include <stdlib.h>
 #include <semaphore.h>
 #include <pthread.h>
@@ -162,6 +163,7 @@ static void handle_local_UNLOCK(int page_id, struct node_id *from)
 
 void unlock(size_t page_id, enum lock_type lock_type)
 {
+    memory_lock(page_id);
 	struct core_info *working_page = core_info + page_id;
 
 	pthread_mutex_lock(&working_page->mutex);
@@ -280,7 +282,7 @@ static void handle_ASK_LOCK(struct message *message)
 					add_request(working_page,
 						    &request.initiator,
 						    request.mode);
-				}
+                }
 				//else :
 			} else {
 				//request <- request U {j}
@@ -329,7 +331,7 @@ void init_core(size_t nbpages, struct node_id *have_token)
 	}
 	core_size = nbpages;
 
-	//init handler
+	// init handler
 	addHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
 	addHandler(UNLOCK, NULL, handle_UNLOCK);
 }

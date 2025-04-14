@@ -5,4 +5,7 @@
 void * init_sigsegv(void * dsm, size_t size, bool is_owner);
 void exit_sigsegv();
 
-void memory_protect(size_t index, int perm);
+void memory_lock(size_t index);
+void memory_unlock_read(size_t index);
+void memory_unlock_write(size_t index);
+void memory_lock_reset(size_t index);
