@@ -54,6 +54,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
     if (pid) {
         
         Init_DSM(SIZE_DSM, LOCALHOST, init_port);
+        mprotect(dsm, SIZE_DSM, PROT_READ | PROT_WRITE);
 
         eq = check_page_owners_equality();
         ASSERT_EQ(eq, 1);
@@ -79,6 +80,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
         sleep(1);
 
         join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
+        mprotect(dsm, SIZE_DSM, PROT_READ | PROT_WRITE);
 
         log_info("joined the DSM\n");
 
