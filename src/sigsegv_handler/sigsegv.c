@@ -95,7 +95,7 @@ static void sigsev_handler(int sig, siginfo_t * info, void * ucontext) {
     int prot = PROT_EXEC | PROT_READ;
 
     enum lock_status lock_status = get_lock_status(page_index);
-    printf("%i sigsev_handler: page_index: %lu, action: %s, lock_status: %s\n", getpid(), page_index, (curr_writing) ? "write" : "read", (lock_status == WRITING) ? "WRITING" : (lock_status == READING) ? "READING" : "NONE");
+    // printf("%i sigsev_handler: page_index: %lu, action: %s, lock_status: %s\n", getpid(), page_index, (curr_writing) ? "write" : "read", (lock_status == WRITING) ? "WRITING" : (lock_status == READING) ? "READING" : "NONE");
     assert(lock_status != NONE); // You're not allowed to do that you criminal, how dare you
     if (lock_status == READING) {
         assert(curr_writing == false); // You don't have the right do to this my dude
