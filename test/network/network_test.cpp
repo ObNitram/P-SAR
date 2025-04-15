@@ -1,16 +1,19 @@
 #include <gtest/gtest.h>
+#include <pthread.h>
+#include <unistd.h>
 
 extern "C" {
 #include "network/network.h"
 #include "network/message.h"
 #include "utils/logger.h"
+#include "network/cond_var.h"
 }
-
 
 const char *localhost = "127.0.0.1";
 const char *str = "Hello, this is a test message !";
-struct node_id dest{ "127.0.0.1", 5555 };
-
+struct node_id dest {
+	"127.0.0.1", 5555
+};
 
 static int counter = 0;
 
@@ -22,17 +25,17 @@ void callBack(struct message *message)
 	EXPECT_TRUE(message->sender.host != NULL);
 
 	EXPECT_TRUE(strcmp(message->sender.host, localhost) == 0);
-
 }
-
 
 TEST(network, basic_receive)
 {
 	init_logger(stderr);
 	counter = 0;
-	start_server(5555, NULL);
+	start_server(5555, localhost);
 
-	addHandler(1,NULL, callBack);
+	addHandler(1, NULL, callBack);
+
+	log_info("handler setup");
 
 	sleep(1);
 
@@ -40,6 +43,8 @@ TEST(network, basic_receive)
 	mes.message_type = 1;
 
 	send_message(&dest, &mes, sizeof(mes));
+
+	log_info("message send");
 
 	sleep(1);
 
@@ -52,22 +57,21 @@ TEST(network, must_not_receive_if_message_number_is_different)
 {
 	init_logger(stderr);
 	counter = 0;
-	start_server(5555, NULL);
+	start_server(5555, localhost);
 
-	addHandler(1,NULL, callBack);
-
-	sleep(1);
+	addHandler(1, NULL, callBack);
 
 	struct message mes = {};
 	mes.message_type = 2;
 
 	send_message(&dest, &mes, sizeof(mes));
 
+	log_info("stop server");
+
 	stop_server();
 
 	EXPECT_EQ(counter, 0);
 }
-
 
 struct message2 {
 	struct message message;
@@ -75,7 +79,6 @@ struct message2 {
 	int data2;
 	char data3[1024];
 };
-
 
 void callBack2(struct message *mes)
 {
@@ -93,16 +96,15 @@ void callBack2(struct message *mes)
 	EXPECT_TRUE(cast_message->data2 == 24);
 
 	EXPECT_TRUE(strcmp(cast_message->data3, localhost) == 0);
-
 }
 
 TEST(network, basic_receive2)
 {
 	init_logger(stderr);
 	counter = 0;
-	start_server(5555, NULL);
+	start_server(5555, localhost);
 
-	addHandler(2,NULL, callBack2);
+	addHandler(2, NULL, callBack2);
 
 	sleep(1);
 
@@ -121,7 +123,6 @@ TEST(network, basic_receive2)
 	EXPECT_EQ(counter, 1);
 }
 
-
 void *lunch_message(void *)
 {
 	sleep(1);
@@ -136,19 +137,14 @@ void *lunch_message(void *)
 	return NULL;
 }
 
-
-TEST(network, wait_for_message)
+struct cond_var send_wait_for_message_cond;
+void handler_send_wait_for_message(struct message *data)
 {
-	init_logger(stderr);
-	counter = 0;
-	start_server(5555, NULL);
+	counter++;
 
-	sleep(1);
+	pthread_mutex_lock(&send_wait_for_message_cond.lock);
 
-	static pthread_t server_thread_id;
-	pthread_create(&server_thread_id, NULL, lunch_message, NULL);
-
-	struct message2 *cast_message = (struct message2 *)wait_message(2,NULL);
+	struct message2 *cast_message = (struct message2 *)data;
 
 	EXPECT_EQ(cast_message->message.message_type, 2);
 	EXPECT_TRUE(cast_message->message.sender.host != NULL);
@@ -161,12 +157,83 @@ TEST(network, wait_for_message)
 	EXPECT_TRUE(cast_message->data2 == 24);
 
 	EXPECT_TRUE(strcmp(cast_message->data3, localhost) == 0);
+	sleep(1);
 
-	free_message((struct message *)cast_message);
+	send_wait_for_message_cond.predicate = true;
+	pthread_cond_signal(&send_wait_for_message_cond.cond);
+	pthread_mutex_unlock(&send_wait_for_message_cond.lock);
+}
+
+TEST(network, send_wait_message)
+{
+	init_logger(stdout);
+	counter = 0;
+	start_server(5555, localhost);
+
+	addHandler(2, NULL, handler_send_wait_for_message);
+
+	struct message2 message = {};
+	message.message.message_type = 2;
+	message.data = 42;
+	message.data2 = 24;
+	strcpy(message.data3, localhost);
+
+	send_wait_message(&dest, (struct message *)&message, sizeof(message), &send_wait_for_message_cond);
 
 	stop_server();
 
-	EXPECT_EQ(counter, 0);
+	EXPECT_EQ(counter, 1);
+}
 
-	pthread_join(server_thread_id, NULL);
+
+struct cond_var handlerception_cond = COND_VAR_INIT;
+void handlerception(struct message *data){
+	pthread_mutex_lock(&handlerception_cond.lock);
+
+	counter++;
+	sleep(1);
+
+	handlerception_cond.predicate = true;
+	pthread_cond_signal(&handlerception_cond.cond);
+	pthread_mutex_unlock(&handlerception_cond.lock);
+}
+
+struct cond_var waiting_handler_cond = COND_VAR_INIT;
+void waiting_handler(struct message *data){
+	pthread_mutex_lock(&waiting_handler_cond.lock);
+
+	counter++;
+	struct message2 message = {};
+	message.message.message_type = 1;
+	message.data = 42;
+	message.data2 = 24;
+	strcpy(message.data3, localhost);
+
+	send_wait_message(&dest, (struct message *)&message, sizeof(message), &handlerception_cond);
+
+	waiting_handler_cond.predicate = true;
+	pthread_cond_signal(&waiting_handler_cond.cond);
+	pthread_mutex_unlock(&waiting_handler_cond.lock);
+}
+
+TEST(network, send_wait_message_in_handler)
+{
+	init_logger(stdout);
+	counter = 0;
+	start_server(5555, localhost);
+
+	addHandler(2, NULL, waiting_handler);
+	addHandler(1, NULL, handlerception);
+
+	struct message2 message = {};
+	message.message.message_type = 2;
+	message.data = 42;
+	message.data2 = 24;
+	strcpy(message.data3, localhost);
+
+	send_wait_message(&dest, (struct message *)&message, sizeof(message), &waiting_handler_cond);
+
+	stop_server();
+
+	EXPECT_EQ(counter, 2);
 }
