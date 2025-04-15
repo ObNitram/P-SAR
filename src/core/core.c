@@ -93,7 +93,7 @@ static inline void send_wait_slsm_message(enum message_type msgt,
 		.mode = m,
 		.page = pid,
 	};
-	send_wait_message(sender, (struct message *)&request,
+	send_wait_message_nolock(sender, (struct message *)&request,
 			  sizeof(struct slsm_message), cond);
 }
 
@@ -304,6 +304,33 @@ static void handle_ASK_LOCK(struct message *message)
 	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
+static void handle_GET_LOCK(struct message *message)
+{
+	struct slsm_message request = *((struct slsm_message *)message);
+	struct core_info *working_page = core_info + request.page;
+
+	pthread_mutex_lock(&working_page->cond.lock);
+
+	switch (request.mode) {
+	//if mode = WRITE :
+	case WRITE:
+		//have_token <- i
+		node_copy(&working_page->have_token, &me);
+		break;
+	//if mode = READ :
+	case READ:
+		//have_token <- j
+		node_copy(&working_page->have_token, &request.sender);
+		break;
+	default:
+		// log erreur should not be possible
+		break;
+	}
+	working_page->cond.predicate = true;
+	pthread_cond_signal(&working_page->cond.cond);
+	pthread_mutex_unlock(&working_page->cond.lock);
+}
+
 static void handle_UNLOCK(struct message *message)
 {
 	struct slsm_message request = *((struct slsm_message *)message);
@@ -335,33 +362,7 @@ void init_core(size_t nbpages, struct node_id *have_token)
 	// init handler
 	addHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
 	addHandler(UNLOCK, NULL, handle_UNLOCK);
-}
-
-static void handle_GET_LOCK(struct message *message)
-{
-	struct slsm_message request = *((struct slsm_message *)message);
-	struct core_info *working_page = core_info + request.page;
-
-	pthread_mutex_lock(&working_page->cond.lock);
-
-	switch (request.mode) {
-	//if mode = WRITE :
-	case WRITE:
-		//have_token <- i
-		node_copy(&working_page->have_token, &me);
-		break;
-	//if mode = READ :
-	case READ:
-		//have_token <- j
-		node_copy(&working_page->have_token, &request.sender);
-		break;
-	default:
-		// log erreur should not be possible
-		break;
-	}
-	working_page->cond.predicate = true;
-	pthread_cond_signal(&working_page->cond.cond);
-	pthread_mutex_unlock(&working_page->cond.lock);
+	addHandler(GET_LOCK, NULL, handle_GET_LOCK);
 }
 
 void clean_core()
@@ -370,6 +371,7 @@ void clean_core()
 	for (int i = 0; i < core_size; i++) {
 		sem_destroy(&core_info[i].write_auto_lock);
 		pthread_mutex_destroy(&core_info[i].cond.lock);
+		pthread_cond_destroy(&core_info[i].cond.cond);
 		list_for_each_entry_safe(c, tmp, &core_info[i].request, next) {
 			list_del(&c->next);
 			free(c);

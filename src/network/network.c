@@ -504,15 +504,22 @@ void send_message(const struct node_id *dest, struct message *message,
 	send_message_internal(sockfd, message, message_size);
 }
 
-void send_wait_message(const struct node_id *dest, struct message *message,
-		       size_t message_size, struct cond_var *cond_struct)
+void send_wait_message_nolock(const struct node_id *dest,
+			      struct message *message, size_t message_size,
+			      struct cond_var *cond_struct)
 {
-	pthread_mutex_lock(&cond_struct->lock);
 	send_message(dest, message, message_size);
 	while (!cond_struct->predicate) {
 		pthread_cond_wait(&cond_struct->cond, &cond_struct->lock);
 	}
 	cond_struct->predicate = false;
+}
+
+void send_wait_message(const struct node_id *dest, struct message *message,
+		       size_t message_size, struct cond_var *cond_struct)
+{
+	pthread_mutex_lock(&cond_struct->lock);
+	send_wait_message_nolock(dest, message, message_size, cond_struct);
 	pthread_mutex_unlock(&cond_struct->lock);
 }
 

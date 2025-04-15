@@ -74,9 +74,19 @@ void send_message(const struct node_id *dest, struct message *message,
 /// @param dest Pointer to the destination node identifier.
 /// @param message Pointer to the message to be sent.
 /// @param message_size Size of the message in bytes.
-/// @param cond_struct Pointer to the variable condition to wait
+/// @param cond_struct Pointer to the variable condition to wait mutex must be non reccurssive and unlock
 void send_wait_message(const struct node_id *dest, struct message *message,
 		       size_t message_size, struct cond_var *cond_struct);
+
+/// @brief Sends a message to a specified destination node and wait for handler
+/// @details Like the send_wait_message but the mutex is assumed to be lock
+/// @param dest Pointer to the destination node identifier.
+/// @param message Pointer to the message to be sent.
+/// @param message_size Size of the message in bytes.
+/// @param cond_struct Pointer to the variable condition to wait mutex must be non reccurssive and lock
+void send_wait_message_nolock(const struct node_id *dest,
+			      struct message *message, size_t message_size,
+			      struct cond_var *cond_struct);
 
 /// @brief Adds a handler for messages of a specific type.
 /// @details Registers a callback function that will be invoked when a message of the specified type is received.
