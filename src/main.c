@@ -1,5 +1,13 @@
 #include "library.h"
+#include "network/message.h"
 #include "utils/logger.h"
+#include <stddef.h>
+
+struct A {
+	struct message a;
+	struct node_id* b;
+	size_t c;
+};
 
 #include <sys/wait.h>
 #include <stdbool.h>
@@ -143,6 +151,7 @@ int main(int argc, char **argv)
 	                 argv[0])) {
 		return 1;
 	}
+
 
 	const int port = atoi(argv[1]);
 

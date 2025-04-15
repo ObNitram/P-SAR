@@ -5,7 +5,10 @@ unsigned int nb_pages;
 struct node_list node_list;
 unsigned int nb_nodees;
 
-const struct node_id EMPTY_NODE = {"", -1};
+const struct node_id EMPTY_NODE = {
+    .host = "",
+    .port = -1
+};
 struct node_id me;
 
 void init_nodes(struct node_list *list) 
@@ -18,7 +21,7 @@ struct node_list *add_to_nodes(struct node_list *list, const char *host,
 							   const int port) 
 {
 	struct node_list *ndlst = malloc(sizeof(struct node_list));
-	size_t sz = min(strlen(host),INET6_ADDRSTRLEN) ;
+	size_t sz = INET6_ADDRSTRLEN;
 	memcpy(ndlst->node.host, host, sizeof(char) * sz);
 	ndlst->node.port = port;
 	list_add(&ndlst->nlist, &list->nlist);
@@ -44,11 +47,18 @@ size_t get_page_index(void *adr)
     return index;
 }
 
-int node_equal(struct node_id *node1, struct node_id *node2){
-    return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
+bool node_equal(const struct node_id *node1, const struct node_id *node2){
+    return (node1->port == node2->port) && (strcmp(node1->host, node2->host) == 0);
 }
 
 void node_copy(struct node_id* dst, struct node_id *src) {
 	memcpy(dst->host, src->host, INET6_ADDRSTRLEN * sizeof(char));
 	dst->port = src->port;
+}
+
+void broadcast_message(struct message * msg, size_t size) {
+	struct node_list * node = &node_list;
+	list_for_each_entry_continue(node, &node_list.nlist, nlist) {
+        send_message(&node->node, msg, size);
+	}
 }

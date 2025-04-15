@@ -1,355 +1,532 @@
 #include "network.h"
+#include "../library.h"
+#include "network/cond_var.h"
+#include "network/message.h"
+#include "utils/logger.h"
+#include "utils/utils.h"
 
-static struct message *waiting_message;
-static size_t waiting_message_type;
-static pthread_mutex_t mutex;
-static pthread_cond_t cond;
+#include <assert.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/epoll.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 
-static struct message_type_queue {
-	void (*foo)(struct message *);
-} message_type_queues[MAX_MESSAGES] = {};
+#define MAX_EVENT 10
+
+struct thread_args {
+	const char *interface;
+	const int port;
+	struct cond_var server_ready;
+};
+
+static void (*callbacks[NUMBER_OF_MSG_TYPE])(struct message *) = { NULL };
+pthread_mutex_t callbacks_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static pthread_t server_thread_id;
 
-static int server_is_running = 0;
-static int listen_sock = -1;
+static bool server_is_running = false;
 
-static int server_port = -1;
+static struct connection_entry {
+	struct node_id node;
+	int sockfd;
+} * connection_buffer;
+pthread_mutex_t con_buff_lock = PTHREAD_MUTEX_INITIALIZER;
 
-void server_thread()
+static size_t buffer_size;
+
+int epollfd;
+
+/// @brief Search for a given node if a socket is in the connection_buffer cache.
+/// @param node Pointer to the node identifier to search.
+/// @return The socket associated to this node or -1 if not found.
+static int find_connection(const struct node_id *node)
 {
-	LOG_NETWORK("Server thread started");
-
-	// Enable asynchronous cancellation: forces the thread to be cancelled at any moment.
-	// WARNING: This is dangerous because it can cancel the thread in the middle of a critical section.
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-
-	listen_sock = -1;
-	struct addrinfo hints, *res, *p;
-	int rv;
-	const char listen_port[6]; // Listening port (as string)
-
-	snprintf(listen_port, sizeof(listen_port), "%d", server_port);
-
-	// Set up hints for getaddrinfo for a passive (server) socket.
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
-	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-	hints.ai_flags = AI_PASSIVE; // Use the local IP
-
-	if ((rv = getaddrinfo(NULL, listen_port, &hints, &res)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return;
+	pthread_mutex_lock(&con_buff_lock);
+	for (int i = 0; i < buffer_size; i++) {
+		if (node_equal(&connection_buffer[i].node, node)) {
+			int sock = connection_buffer[i].sockfd;
+			pthread_mutex_unlock(&con_buff_lock);
+			return sock;
+		}
 	}
-
-	// Loop through all results and bind to the first we can.
-	for (p = res; p != NULL; p = p->ai_next) {
-		listen_sock = socket(p->ai_family, p->ai_socktype,
-		                     p->ai_protocol);
-		if (listen_sock < 0) {
-			perror("socket");
-			continue;
-		}
-		// Enable address reuse.
-		int optval = 1;
-		if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR,
-		               &optval,
-		               sizeof(optval)) < 0) {
-			perror("setsockopt");
-			close(listen_sock);
-			continue;
-		}
-		if (bind(listen_sock, p->ai_addr, p->ai_addrlen) < 0) {
-			perror("bind");
-			close(listen_sock);
-			continue;
-		}
-		break; // Successfully bound.
-	}
-
-	if (p == NULL || listen_sock == -1) {
-		fprintf(
-			stderr,
-			"Failed to bind listening socket on port %s\n",
-			listen_port);
-		freeaddrinfo(res);
-		return;
-	}
-	freeaddrinfo(res);
-
-	// Start listening for incoming connections.
-	if (listen(listen_sock, 5) < 0) {
-		perror("listen");
-		close(listen_sock);
-		return;
-	}
-
-	// wake up the main thread
-	pthread_mutex_lock(&mutex);
-	pthread_cond_signal(&cond);
-	pthread_mutex_unlock(&mutex);
-
-	while (server_is_running) {
-
-		// Accept an incoming connection.
-		struct sockaddr_storage client_addr;
-		socklen_t addr_size = sizeof(client_addr);
-		const int conn_sock = accept(listen_sock,
-		                             (struct sockaddr *)&client_addr,
-		                             &addr_size);
-		if (conn_sock < 0) {
-			perror("accept");
-			close(listen_sock);
-			return;
-		}
-
-		size_t message_size = 0;
-		if (recv(conn_sock, &message_size, sizeof(message_size),
-		         0) != sizeof(
-			    message_size)) {
-			perror("read");
-			close(conn_sock);
-			close(listen_sock);
-			return;
-		}
-
-		struct message *message = malloc(message_size);
-
-		if (recv(conn_sock, message, message_size, 0) < 0) {
-			perror("read");
-			close(conn_sock);
-			close(listen_sock);
-			return;
-		}
-
-		size_t message_type = message->message_type;
-
-		const struct sockaddr_in *s = (struct sockaddr_in *)&
-			client_addr;
-		// message->sender.port = ntohs(s->sin_port);
-
-		inet_ntop(AF_INET, &s->sin_addr, message->sender.host,
-		          sizeof(message->sender.host));
-
-		int message_usage_counter = 0;
-
-
-		int diff = message_type_queues[message_type].foo != NULL;
-
-		if (message_type_queues[message->message_type].foo != NULL) {
-			message_usage_counter++;
-			message_type_queues[message->message_type].foo(message);
-		}
-		
-		// Is user waiting on thread
-		pthread_mutex_lock(&mutex);
-		
-		if (waiting_message_type == message_type) {
-			waiting_message = copy_message(message, message_size);
-			message_usage_counter++;
-			pthread_cond_signal(&cond);
-		}
-		
-		pthread_mutex_unlock(&mutex);
-		
-		free_message(message);
-		ENSURE_WARNING_NETWORK(message_usage_counter > 0,
-		               "Message type %lu receive but not used",
-		               message_type);
-
-		close(conn_sock);
-	}
-	close(listen_sock);
+	pthread_mutex_unlock(&con_buff_lock);
+	return -1;
 }
 
-void start_server(const int port)
+/// @brief Add the tuple node/key to the connection_buffer cache.
+/// @param node The node to add as a key.
+/// @param socket The socket associated to the node.
+/// @return 0 on success or -1 entry already exist.
+static int add_connection(const struct node_id node, const int socket)
 {
-	LOG_NETWORK("Starting server on port %i", port);
-	server_port = port;
-	for (int i = 0; i < MAX_MESSAGES; i++) {
-		message_type_queues[i].foo = NULL;
+	pthread_mutex_lock(&con_buff_lock);
+
+	for (int i = 0; i < buffer_size; i++) {
+		if (node_equal(&connection_buffer[i].node, &node)) {
+			int sock = connection_buffer[i].sockfd;
+			pthread_mutex_unlock(&con_buff_lock);
+			return sock;
+		}
 	}
 
-	server_is_running = 1;
-	pthread_create(&server_thread_id, NULL, server_thread, NULL);
+	buffer_size++;
+	if (connection_buffer) {
+		connection_buffer =
+			realloc(connection_buffer,
+				sizeof(struct connection_entry) * buffer_size);
+	} else {
+		connection_buffer =
+			malloc(sizeof(struct connection_entry) * buffer_size);
+	}
+
+	connection_buffer[buffer_size - 1].node = node;
+	connection_buffer[buffer_size - 1].sockfd = socket;
+	pthread_mutex_unlock(&con_buff_lock);
+
+	return 0;
+}
+
+/// @brief Replace the socket associated to the given node in the connection_buffer cache.
+/// @param node The node to search.
+/// @param socket The new socket to replace.
+/// @return 0 on success or -1 if socket is valid.
+static int replace_socket(const struct node_id *node, const int socket)
+{
+	int i = 0;
+	for (i = 0; i < buffer_size; i++) {
+		if (node_equal(&connection_buffer[i].node, node)) {
+			if (fcntl(connection_buffer[i].sockfd, F_GETFL) < 0 &&
+			    errno == EBADF) {
+				connection_buffer[i].sockfd = socket;
+				break;
+			}
+			pthread_mutex_unlock(&con_buff_lock);
+			return -1;
+		}
+	}
+	pthread_mutex_unlock(&con_buff_lock);
+	return 0;
+}
+
+static void *exec_handler(void *arg)
+{
+	struct message *message = (struct message *)arg;
+
+	void (*callback)(struct message *) = NULL;
+
+	pthread_mutex_lock(&callbacks_lock);
+	if (message->message_type < NUMBER_OF_MSG_TYPE &&
+	    callbacks[message->message_type] != NULL) {
+		callback = callbacks[message->message_type];
+	}
+	pthread_mutex_unlock(&callbacks_lock);
+
+	if (callback != NULL)
+		callback(message);
+	free(message);
+	return NULL;
+}
+
+/// @brief Receive N byte of data on the given socket, protect to signal.
+/// @param sock The socket to read.
+/// @param data the data to write data, it must be initialize before with the given size.
+/// @param size The size to read in the socket.
+/// @return the size read or -1 on failure, a size of 0 means the end of communication on this socket.
+static int Recv_all(const int sock, void *data, const size_t size)
+{
+	int seek = 0;
+	int ret = 0;
+	do {
+		ret = recv(sock, data + seek, size - seek, 0);
+		if (ret == 0 && seek == 0)
+			break;
+		if (ret == -1)
+			return -1;
+		seek += ret;
+	} while ((size - seek) > 0);
+	return seek;
+}
+
+void *server_thread(void *arg)
+{
+	log_info("Server thread started");
+
+	const int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (listen_sock < 0) {
+		perror("socket");
+		return NULL;
+	}
+
+	struct epoll_event ev, events[MAX_EVENT];
+
+	//this block initiate the server so all local var wont be used in the next
+	{
+		//this will only work because main thread is waiting
+		// after notify the main thread, param will be lost => access to it will segfault
+		struct thread_args *param = (struct thread_args *)arg;
+
+		struct sockaddr_in serveraddr = { 0 };
+		serveraddr.sin_family = AF_INET;
+		serveraddr.sin_port = htons(param->port);
+
+		if (inet_pton(AF_INET,
+			      param->interface ? param->interface : LOCALHOST,
+			      &serveraddr.sin_addr) <= 0) {
+			perror("inet_pton");
+			close(listen_sock);
+			return NULL;
+		}
+
+		// Enable address reuse.
+		int optval = 1;
+		if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &optval,
+			       sizeof(optval)) < 0) {
+			perror("setsockopt");
+			close(listen_sock);
+			return NULL;
+		}
+
+		if (bind(listen_sock, (struct sockaddr *)&serveraddr,
+			 sizeof(serveraddr)) < 0) {
+			perror("bind");
+			close(listen_sock);
+			return NULL;
+		}
+
+		// Start listening for incoming connections.
+		if (listen(listen_sock, 5) < 0) {
+			perror("listen");
+			close(listen_sock);
+			return NULL;
+		}
+
+		// initiate me node => ip:port is not a valid id
+		inet_ntop(AF_INET, &serveraddr.sin_addr, me.host,
+			  INET6_ADDRSTRLEN);
+		me.port = ntohs(serveraddr.sin_port);
+
+		epollfd = epoll_create1(0);
+		if (epollfd < 0) {
+			perror("epoll");
+			close(listen_sock);
+			return NULL;
+		}
+
+		ev.events = EPOLLIN;
+		ev.data.fd = listen_sock;
+
+		if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listen_sock, &ev) == -1) {
+			perror("epollctl");
+			close(listen_sock);
+			close(epollfd);
+			return NULL;
+		}
+
+		server_is_running = true;
+
+		//wakeup main thread
+		pthread_mutex_lock(&param->server_ready.lock);
+		param->server_ready.predicate = true;
+		pthread_cond_signal(&param->server_ready.cond);
+		pthread_mutex_unlock(&param->server_ready.lock);
+	}
+
+	while (server_is_running) {
+		//this epoll_wait must be the only cancelation point of the server
+		// pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+		//wait event on epoll => pwait and mask signal ??
+		int nevents = epoll_wait(epollfd, events, MAX_EVENT, -1);
+		if (nevents == -1) {
+			perror("epoll_wait");
+			break;
+		}
+
+		// pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+
+		for (int i = 0; i < nevents; i++) {
+			//if event on listen_sock then accept connection
+			if (events[i].data.fd == listen_sock) {
+				struct sockaddr_in client_addr;
+				socklen_t addr_size = sizeof(client_addr);
+				const int conn_sock =
+					accept(listen_sock,
+					       (struct sockaddr *)&client_addr,
+					       &addr_size);
+
+				if (conn_sock < 0) {
+					perror("accept");
+					close(listen_sock);
+					continue;
+				}
+
+				//add socket to epoll
+				ev.events = EPOLLIN;
+				ev.data.fd = conn_sock;
+				if (epoll_ctl(epollfd, EPOLL_CTL_ADD, conn_sock,
+					      &ev) == -1) {
+					perror("epoll_ctl");
+					close(conn_sock);
+					continue;
+				}
+
+			} else {
+				//if not an accept receive message
+				size_t message_size = 0;
+
+				int ret = Recv_all(events[i].data.fd,
+						   &message_size,
+						   sizeof(message_size));
+				if (ret == -1) {
+					perror("read size");
+					close(events[i].data.fd);
+					continue;
+				}
+
+				if (ret == 0) {
+					close(events[i].data.fd);
+					continue;
+				}
+
+				struct message *message = malloc(message_size);
+				if (Recv_all(events[i].data.fd, (char *)message,
+					     message_size) == -1) {
+					perror("read data");
+					close(events[i].data.fd);
+					continue;
+				}
+
+				if (message->message_type >= NUMBER_OF_MSG_TYPE)
+					continue;
+
+				add_connection(message->sender,
+					       events[i].data.fd);
+
+				pthread_t handler;
+				pthread_create(&handler, NULL, exec_handler,
+					       (void *)message);
+				pthread_detach(handler);
+			}
+		}
+	}
+
+	server_is_running = false;
+	close(listen_sock);
+
+	log_info("server exit successfuly");
+	return NULL;
+}
+
+void start_server(const int port, const char *interface)
+{
+	log_info("Starting server on port %i with interface %s", port,
+		 interface);
+
+	// init value
+	buffer_size = 0;
+	connection_buffer = NULL;
+
+	struct thread_args args = { .interface = interface,
+				    .port = port,
+				    .server_ready = COND_VAR_INIT };
+
+	pthread_mutex_lock(&args.server_ready.lock);
+
+	pthread_create(&server_thread_id, NULL, server_thread, (void *)&args);
+
 	// wait until the server is started
-	pthread_mutex_lock(&mutex);
-	pthread_cond_wait(&cond, &mutex);
-	pthread_mutex_unlock(&mutex);
+	while (!args.server_ready.predicate)
+		pthread_cond_wait(&args.server_ready.cond,
+				  &args.server_ready.lock);
+
+	pthread_mutex_unlock(&args.server_ready.lock);
 }
 
 void stop_server()
 {
-	LOG_NETWORK("Stopping server...");
-	server_is_running = 0;
+	log_info("Stopping server...");
+	server_is_running = false;
 
-	if (pthread_cancel(server_thread_id) != 0) {
-		perror("pthread_cancel");
-	}
+	const int poisonous_sock = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (listen_sock != -1) {
-		close(listen_sock);
-	}
+	// TODO: kill the thread if poisonous injection fail
+	struct sockaddr_in serv_addr;
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(me.port);
+	inet_pton(AF_INET, me.host, &serv_addr.sin_addr);
+
+	connect(poisonous_sock, (struct sockaddr *)&serv_addr,
+		sizeof(serv_addr));
+	close(poisonous_sock);
 
 	pthread_join(server_thread_id, NULL);
 
-	for (int i = 0; i < MAX_MESSAGES; i++) {
-		message_type_queues[i].foo = NULL;
+	for (int i = 0; i < NUMBER_OF_MSG_TYPE; i++) {
+		callbacks[i] = NULL;
 	}
-	LOG_NETWORK("Server stopped.");
+
+	for (int i = 0; i < buffer_size; i++) {
+		close(connection_buffer[i].sockfd);
+	}
+	close(epollfd);
+
+	buffer_size = 0;
+	free(connection_buffer);
+
+	log_info("server is stop");
 }
 
 int get_server_port()
 {
-	return server_port;
+	return me.port;
 }
 
-char * get_server_ip()
+char *get_server_ip()
 {
 	char *ip = malloc(INET6_ADDRSTRLEN);
-	if (ip == NULL) {
-		perror("malloc");
-		return NULL;
-	}
-
-	struct addrinfo hints, *res;
-	int rv;
-
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-
-	if ((rv = getaddrinfo("localhost", NULL, &hints, &res)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		free(ip);
-		return NULL;
-	}
-
-	struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
-	inet_ntop(AF_INET, &addr->sin_addr, ip, INET6_ADDRSTRLEN);
-
-	freeaddrinfo(res);
+	memcpy(ip, me.host, INET6_ADDRSTRLEN);
 
 	return ip;
 }
 
-
-void send_message(const struct node_id *dest,
-                  struct message *message,
-                  const size_t message_size)
+/// @brief Send N byte of data on the given socket, protect to signal.
+/// @param sock The socket to send.
+/// @param data the data to write data, it must be initialize before with the given size.
+/// @param size The size of data to send in the socket.
+/// @return 0 on success or -1 on failure.
+static int send_all(const int sockfd, const char *data, const size_t size)
 {
-	if (ENSURE_ERROR_NETWORK(dest != NULL, "Destination node required")) {
-		return;
-	}
-	if (ENSURE_ERROR_NETWORK(dest->host != NULL, "Destination host required")) {
-		return;
-	}
-	if (ENSURE_ERROR_NETWORK(dest->port != 0, "Destination port required")) {
-		return;
-	}
+	int seek = 0;
+	int ret = 0;
+	do {
+		ret = send(sockfd, data + seek, size - seek, 0);
+		if (ret == -1)
+			return -1;
+		seek += ret;
+	} while ((size - seek) > 0);
+	return 0;
+}
 
-
-
-	// Complete the message with the sender's information
-	message->sender.port = get_server_port();
-
-	struct addrinfo hints, *servinfo, *p;
-	int rv;
-
-	// Buffer to hold the port number as string (max "65535")
-	char port_str[6];
-
-	// Convert port number to string
-	snprintf(port_str, sizeof(port_str), "%i", dest->port);
-
-
-	// Set up hints for getaddrinfo
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
-	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
-
-	// Get address information for the destination host and port
-	if ((rv = getaddrinfo(dest->host, port_str, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-		return;
-	}
-
-	int sockfd = -1;
-	// Loop through all results and connect to the first we can
-	for (p = servinfo; p != NULL; p = p->ai_next) {
-		// Create a socket
-		sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-		if (sockfd == -1) {
-			perror("socket");
-			continue;
-		}
-
-		// Attempt to connect to the server
-		if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-			perror("connect");
-			close(sockfd);
-			continue;
-		}
-		break; // Successfully connected
-	}
-
-	// Check if we managed to connect
-	if (p == NULL || sockfd == -1) {
-		fprintf(stderr, "Failed to connect to %s:%s\n", dest->host,
-		        port_str);
-		freeaddrinfo(servinfo);
-		return;
-	}
-
-	ssize_t sent_bytes = send(sockfd, &message_size, sizeof(message_size),
-	                          0);
-	if (sent_bytes != sizeof(message_size)) {
+static int send_message_internal(int sockfd, struct message *message,
+				 const size_t message_size)
+{
+	if (send_all(sockfd, (char *)&message_size, sizeof(message_size)) ==
+	    -1) {
 		perror("send datasize");
 		close(sockfd);
-		freeaddrinfo(servinfo);
-		return;
+		return -1;
 	}
 
-	sent_bytes = send(sockfd, message, message_size, 0);
-	if (sent_bytes != message_size) {
+	if (send_all(sockfd, (char *)message, message_size) == -1) {
 		perror("send data");
 		close(sockfd);
-		freeaddrinfo(servinfo);
+		return -1;
+	}
+
+	return 0;
+}
+
+void send_message(const struct node_id *dest, struct message *message,
+		  const size_t message_size)
+{
+	//It will be prettier to define return value for error handling
+	if (ensure_error(dest != NULL, "Destination node required")) {
 		return;
 	}
-	LOG_NETWORK("Message type %lu sent", message->message_type);
+	if (ensure_error(dest->host != NULL, "Destination host required")) {
+		return;
+	}
+	if (ensure_error(dest->port != 0, "Destination port required")) {
+		return;
+	}
 
-	// Clean up resources: close the socket and free the address info structure
-	close(sockfd);
-	freeaddrinfo(servinfo);
+	// Complete the message with the sender's information
+	node_copy(&message->sender, &me);
+
+	// find the correct socket to send
+	int sock = find_connection(dest);
+	if (sock != -1) {
+		if (send_message_internal(sock, message, message_size) != -1) {
+			return;
+		}
+	}
+
+	// new connection if not found or if fail to send
+	// Create a socket
+	const int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sockfd == -1) {
+		perror("socket");
+		return;
+	}
+
+	struct sockaddr_in serv_addr;
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(dest->port);
+	if (inet_pton(AF_INET, dest->host, &serv_addr.sin_addr) <= 0) {
+		printf("Invalid address or Address not supported\n");
+		return;
+	}
+
+	// Attempt to connect to the server
+	if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) ==
+	    -1) {
+		perror("connect");
+		close(sockfd);
+		return;
+	}
+
+	struct epoll_event ev;
+	ev.events = EPOLLIN;
+	ev.data.fd = sockfd;
+
+	if (epoll_ctl(epollfd, EPOLL_CTL_ADD, sockfd, &ev) == -1) {
+		perror("epollctl");
+		close(sockfd);
+		return;
+	}
+
+	if (sock == -1) {
+		if (add_connection(*dest, sockfd) != 0) {
+			close(sockfd);
+		}
+	} else {
+		if (replace_socket(dest, sockfd) == -1) {
+			close(sockfd);
+		}
+	}
+
+	send_message_internal(sockfd, message, message_size);
 }
 
-void addHandler(const size_t message_type,
-                struct node_id *sender,
-                void callBack(struct message *message))
+void send_wait_message_nolock(const struct node_id *dest,
+			      struct message *message, size_t message_size,
+			      struct cond_var *cond_struct)
 {
-	message_type_queues[message_type].foo = callBack;
+	send_message(dest, message, message_size);
+	while (!cond_struct->predicate) {
+		pthread_cond_wait(&cond_struct->cond, &cond_struct->lock);
+	}
+	cond_struct->predicate = false;
 }
 
-
-struct message *wait_message(const size_t message_type,
-                             struct node_id *sender)
+void send_wait_message(const struct node_id *dest, struct message *message,
+		       size_t message_size, struct cond_var *cond_struct)
 {
-	waiting_message_type = message_type;
+	pthread_mutex_lock(&cond_struct->lock);
+	send_wait_message_nolock(dest, message, message_size, cond_struct);
+	pthread_mutex_unlock(&cond_struct->lock);
+}
 
-	pthread_mutex_lock(&mutex);
-
-	LOG_NETWORK("Waiting for message type %lu", message_type);
-
-	pthread_cond_wait(&cond, &mutex);
-
-	LOG_NETWORK("Message type %lu received", message_type);
-
-	struct message *message = waiting_message;
-	waiting_message = NULL;
-
-	pthread_mutex_unlock(&mutex);
-
-	return message;
+void addHandler(const size_t message_type, struct node_id *sender,
+		void callBack(struct message *message))
+{
+	pthread_mutex_lock(&callbacks_lock);
+	callbacks[message_type] = callBack;
+	pthread_mutex_unlock(&callbacks_lock);
 }
