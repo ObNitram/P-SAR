@@ -1,13 +1,14 @@
 #include "data_transfer.h"
 #include <stdlib.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 static pthread_mutex_t *page_mtx;
 static pthread_cond_t *page_cond;
 // 1 if we are actually synching the page 0 otherwise
-static char *page_in_transit;
+static bool *page_in_transit;
 // 1 if the page is up-to-date  otherwise
-static char *page_state;
+static bool *page_state;
 
 static void wait_signal(size_t page_id) {
     pthread_mutex_lock(page_mtx + page_id);
@@ -21,7 +22,7 @@ static void signal_page(size_t page_id) {
     pthread_mutex_lock(page_mtx + page_id);
     page_in_transit[page_id] = 0;
     page_state[page_id] = 1;
-    pthread_cond_signal(page_cond + page_id);
+    pthread_cond_broadcast(page_cond + page_id);
     pthread_mutex_unlock(page_mtx + page_id);
     LOG_DATA_TRANS("signaled !\n");
 }
@@ -46,7 +47,6 @@ static void PAGE_handler(struct message *message) {
     // if someone is synching we wake him up
     synching = page_in_transit[*page_id];
     pthread_mutex_unlock(page_mtx + *page_id);
-
     if (synching) signal_page(*page_id);
     LOG_DATA_TRANS("finished PAGE_HANDLER\n");
 }

@@ -40,8 +40,8 @@ void init_data_transfer(unsigned int nb_pages, struct node_id* owners) {
     page_owners = malloc(nb_pages * sizeof(struct node_id));
     page_mtx = malloc(nb_pages * sizeof(pthread_mutex_t));
     page_cond = malloc(nb_pages * sizeof(pthread_cond_t));
-    page_in_transit = malloc(nb_pages * sizeof(char));
-    page_state = malloc(nb_pages * sizeof(char));
+    page_in_transit = malloc(nb_pages * sizeof(bool));
+    page_state = malloc(nb_pages * sizeof(bool));
     for (unsigned int i = 0; i < nb_pages; i++) {
         pthread_mutex_init(page_mtx + i, NULL);
         pthread_cond_init(page_cond + i, NULL);
