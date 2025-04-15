@@ -1,7 +1,7 @@
 #include "data_transfer.h"
 #include "data_transfer_utils.h"
 
-static struct node_id *page_owners;
+struct node_id *page_owners;
 
 void set_new_owner(size_t page_id, struct node_id *new_owner) {
     pthread_mutex_lock(page_mtx + page_id);
@@ -48,8 +48,8 @@ void init_data_transfer(unsigned int nb_pages, struct node_id* owners) {
         page_in_transit[i] = 0;
         if (!owners) {
             node_copy(page_owners + i, &me);
-            page_state[i] = 0;
-        }else page_state[i] = 1;
+            page_state[i] = 1;
+        }else page_state[i] = 0;
     }
     if (owners) {
         memcpy(page_owners, owners, sizeof(struct node_id) * nb_pages);
@@ -109,4 +109,10 @@ void leave_data_transfer(struct node_id *new_owner) {
     }
 
     clean_data_transfer();
+}
+
+void get_page_owners(void *dst) {
+    for (unsigned int i = 0; i<nb_pages; i++) pthread_mutex_lock(page_mtx + i);
+    memcpy(dst, page_owners, nb_pages * sizeof(struct node_id));
+    for (unsigned int i = 0; i<nb_pages; i++) pthread_mutex_unlock(page_mtx + i);
 }
