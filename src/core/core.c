@@ -377,6 +377,7 @@ void clean_core()
 	for (int i = 0; i < core_size; i++) {
 		sem_destroy(&core_info[i].write_auto_lock);
 		pthread_mutex_destroy(&core_info[i].cond.lock);
+		pthread_cond_destroy(&core_info[i].cond.cond);
 		list_for_each_entry_safe(c, tmp, &core_info[i].request, next) {
 			list_del(&c->next);
 			free(c);
