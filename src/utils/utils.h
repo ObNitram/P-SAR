@@ -35,7 +35,9 @@ enum message_type {
     REQUEST_CS,
     GET_CS,
     NEW_ROOT_CS, 
-    RESET_CS
+    RESET_CS, 
+    ACK_CS,
+    LEAVE_CS
 };
 
 #define min(a, b) ((a) < (b) ? (a) : (b))

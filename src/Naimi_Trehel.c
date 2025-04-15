@@ -3,6 +3,7 @@
 static bool token;
 static bool requesting;
 static bool leaving;
+static bool acked;
 static struct node_id father;
 static struct node_id next;
 // mutex to manage data race 
@@ -46,7 +47,7 @@ static void REQUEST_CS_handler(struct message *message) {
 static void GET_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
     token = 1;
-    pthread_cond_signal(&cond);
+    pthread_cond_broadcast(&cond);
     pthread_mutex_unlock(&mtx);
 }
 
@@ -80,16 +81,29 @@ static void init_internal_data(const struct node_id *father_init,
     token = token_init;
     requesting = requesting_init;
     leaving = 0;
+    acked = 0;
     node_copy(&father, father_init);
     node_copy(&next, &EMPTY_NODE);
+}
+
+static void ACK_CS_handler(struct message *message) {
+    pthread_mutex_lock(&mtx);
+    acked = 1;
+    pthread_cond_broadcast(&cond);
+    pthread_mutex_unlock(&mtx);
 }
 
 static void RESET_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
     // we reset the internal data as if we called INIT_CS for the first time
     init_internal_data(&message->sender, 0, requesting);
-    if (requesting) request_CS();
-    pthread_mutex_unlock(&mtx);
+    struct message msg = {.message_type = ACK_CS};
+    send_message(&message ->sender, &msg, sizeof(struct message));
+    // request_CS() is a blocking function must be called at the end
+    if (requesting) {
+        pthread_mutex_unlock(&mtx);
+        request_CS();
+    }else pthread_mutex_unlock(&mtx);
 }
 
 static void NEW_ROOT_CS_handler(struct message *message) {
@@ -99,7 +113,20 @@ static void NEW_ROOT_CS_handler(struct message *message) {
         pthread_cond_signal(&cond);
     }
     struct message msg = {.message_type = RESET_CS};
-    broadcast_message(&msg, sizeof(struct message));
+    struct node_list *n1 = &node_list;
+    list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
+        send_message(&n1->node, &msg, sizeof(struct message));
+        while(!acked) pthread_cond_wait(&cond, &mtx);
+    }
+    msg.message_type = LEAVE_CS;
+    send_message(&message->sender, &msg, sizeof(struct message));
+    pthread_mutex_unlock(&mtx);
+}
+
+static void LEAVE_CS_handler(struct message *message) {
+    pthread_mutex_lock(&mtx);
+    leaving = 0;
+    pthread_cond_broadcast(&cond);
     pthread_mutex_unlock(&mtx);
 }
 
@@ -112,6 +139,8 @@ void init_CS(const struct node_id *father_init, bool token_init,
     addHandler(GET_CS, NULL, GET_CS_handler);
     addHandler(RESET_CS, NULL, RESET_CS_handler);
     addHandler(NEW_ROOT_CS, NULL, NEW_ROOT_CS_handler);
+    addHandler(ACK_CS, NULL, ACK_CS_handler);
+    addHandler(LEAVE_CS, NULL, LEAVE_CS_handler);
 }
 
 void clear_CS() {
@@ -125,6 +154,7 @@ int leave_CS() {
         pthread_mutex_unlock(&mtx);
         return -1;
     }
+    leaving = 1;
     struct node_id *new_root = NULL;
     size_t sz;
     if (!node_equal(&next, &EMPTY_NODE)) new_root = &next;
@@ -132,11 +162,12 @@ int leave_CS() {
 
     // there is no ther person in the network
     if (new_root->port == -1) goto exit;
-    
 
     // we just have to inform him, that he is the new root
     struct message msg = {.message_type = NEW_ROOT_CS};
     send_message(new_root, &msg, sizeof(struct message));
+
+    while(leaving) pthread_cond_wait(&cond, &mtx);
     
     exit :
         pthread_mutex_unlock(&mtx);
