@@ -30,6 +30,7 @@ enum message_type {
 	INFO_DSM,
 	ASK_PAGE,
 	RECV_PAGE,
+  INVALIDATION,
 	NUMBER_OF_MSG_TYPE // keep this value to the end it indicate the number of message type in the app
 };
 
@@ -51,4 +52,6 @@ extern size_t get_page_index(void *adr);
 
 extern bool node_equal(const struct node_id *node1, const struct node_id *node2);
 
-extern void node_copy(struct node_id *dst, struct node_id *src);
+extern void node_copy(struct node_id* dst, struct node_id *src);
+
+void broadcast_message(struct message * msg, size_t size_t);

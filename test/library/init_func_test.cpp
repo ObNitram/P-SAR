@@ -11,8 +11,8 @@ extern "C" {
 }
 
 static const char *addr_init = "127.0.0.1";
-static const int init_port = 2451;
-static const int joiner_port = 4321;
+static const int init_port = 2450;
+static const int joiner_port = 4320;
 static const int nb_pages_ = 10;
 static const int nb_nodes_ = 1;
 

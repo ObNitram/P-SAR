@@ -55,3 +55,10 @@ void node_copy(struct node_id* dst, struct node_id *src) {
 	memcpy(dst->host, src->host, INET6_ADDRSTRLEN * sizeof(char));
 	dst->port = src->port;
 }
+
+void broadcast_message(struct message * msg, size_t size) {
+	struct node_list * node = &node_list;
+	list_for_each_entry_continue(node, &node_list.nlist, nlist) {
+        send_message(&node->node, msg, size);
+	}
+}

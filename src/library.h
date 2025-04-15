@@ -8,7 +8,6 @@
 #include <unistd.h>
 
 #include "network/network.h"
-#include "core/sigaction_handler.h"
 #include "core/core.h"
 #include "core/data_transfer.h"
 #include "network/message.h"

@@ -1,11 +1,16 @@
 #include "data_transfer.h"
 #include "../utils/utils.h"
+#include "../sigsegv_handler/sigsegv.h"
 #include "../core/core.h"
 #include "network/cond_var.h"
 #include <pthread.h>
 #include <stdlib.h>
 
 struct node_id *page_owners;
+
+void set_new_owner(size_t page_id, struct node_id *new_owner) {
+    node_copy(page_owners + page_id, new_owner);
+}
 
 static struct cond_var wait_RECV_PAGE = COND_VAR_INIT;
 static void RECV_PAGE_handler(struct message *message) {
@@ -15,8 +20,10 @@ static void RECV_PAGE_handler(struct message *message) {
     void *addr_np = (void *) (page_id + 1);
     void *addr_p = dsm + (*page_id) * PAGE_SIZE;
     node_copy(page_owners + *page_id, &message->sender);
+    memory_unlock_write(*page_id);
     memcpy(addr_p, addr_np, PAGE_SIZE);
-
+    memory_lock_reset(*page_id);
+  
     wait_RECV_PAGE.predicate = true;
     pthread_cond_signal(&wait_RECV_PAGE.cond);
     pthread_mutex_unlock(&wait_RECV_PAGE.lock);
@@ -30,7 +37,9 @@ static void transfer_page(struct node_id *requester, size_t page_id) {
     msg->message_type = RECV_PAGE;
     size_t *index_p = (size_t * ) (msg + 1);
     *index_p = page_id;
+    memory_unlock_read(page_id);
     memcpy(index_p + 1, addr_pg, PAGE_SIZE);
+    memory_lock_reset(page_id);
     send_message(requester, msg, ms_sz);
     free_message(msg);
 }
@@ -48,21 +57,19 @@ static void ASK_PAGE_handler(struct message *message) {
     }
 }
 
-void sync_page(struct node_id *owner, size_t page_id){
-    size_t ms_sz =  sizeof(struct message) + sizeof(size_t) +
-                    sizeof(struct node_id);
-    if (node_equal(owner, &me)) {
-        // We already got the data
+void sync_page(size_t page_id){
+    // TODO set a dirty bit
+    if (node_equal(page_owners + page_id, &me)) {
         return;
     }
+    size_t ms_sz =  sizeof(struct message) + sizeof(size_t) +
+                    sizeof(struct node_id);
     struct message *msg = malloc(ms_sz);
     msg->message_type = ASK_PAGE;
     size_t * index_p = (size_t *) (msg + 1);
     *index_p = page_id;
     node_copy((struct node_id *) (index_p + 1), &me);
-
-    send_wait_message(owner, msg, ms_sz, &wait_RECV_PAGE);
-
+    send_wait_message(page_owners + page_id, msg, ms_sz, &wait_RECV_PAGE);
     LOG_DATA_TRANS("synced page %zu\n", page_id);
     free_message(msg);
 }

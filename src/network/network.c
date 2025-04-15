@@ -1,9 +1,10 @@
 #include "network.h"
-#include "library.h"
+#include "../library.h"
 #include "network/cond_var.h"
 #include "network/message.h"
 #include "utils/logger.h"
 #include "utils/utils.h"
+
 #include <assert.h>
 #include <netinet/in.h>
 #include <pthread.h>

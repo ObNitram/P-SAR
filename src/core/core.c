@@ -3,17 +3,11 @@
 #include "../network/message.h"
 #include "../network/network.h"
 #include "../utils/list.h"
+#include "../sigsegv_handler/sigsegv.h"
 #include "network/cond_var.h"
 #include <stdlib.h>
 #include <semaphore.h>
 #include <pthread.h>
-
-// enum for local status of lock
-enum lock_status {
-	READING = READ,
-	WRITING = WRITE,
-	NONE,
-};
 
 struct request {
 	enum lock_type mode;
@@ -283,7 +277,7 @@ static void handle_ASK_LOCK(struct message *message)
 					add_request(working_page,
 						    &request.initiator,
 						    request.mode);
-				}
+                }
 				//else :
 			} else {
 				//request <- request U {j}
@@ -365,7 +359,7 @@ void init_core(size_t nbpages, struct node_id *have_token)
 	}
 	core_size = nbpages;
 
-	//init handler
+	// init handler
 	addHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
 	addHandler(UNLOCK, NULL, handle_UNLOCK);
 	addHandler(GET_LOCK, NULL, handle_GET_LOCK);
@@ -385,4 +379,9 @@ void clean_core()
 	}
 	free(core_info);
 	core_info = NULL;
+}
+
+enum lock_status get_lock_status(size_t page_id)
+{
+    return core_info[page_id].mode;
 }
