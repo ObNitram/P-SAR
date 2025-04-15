@@ -4,12 +4,14 @@
 
 static pthread_mutex_t *page_mtx;
 static pthread_cond_t *page_cond;
-// represents the state of the page, 1 if we called sync_page or leave_data_transfer else 0
+// 1 if we are actually synching the page 0 otherwise
+static char *page_in_transit;
+// 1 if the page is up-to-date  otherwise
 static char *page_state;
 
 static void wait_signal(size_t page_id) {
     pthread_mutex_lock(page_mtx + page_id);
-    while (page_state[page_id]){
+    while (page_in_transit[page_id]){
         pthread_cond_wait(page_cond + page_id, page_mtx + page_id);
     }
     pthread_mutex_unlock(page_mtx + page_id);
@@ -17,7 +19,8 @@ static void wait_signal(size_t page_id) {
 
 static void signal_page(size_t page_id) {
     pthread_mutex_lock(page_mtx + page_id);
-    page_state[page_id] = 0;
+    page_in_transit[page_id] = 0;
+    page_state[page_id] = 1;
     pthread_cond_signal(page_cond + page_id);
     pthread_mutex_unlock(page_mtx + page_id);
     LOG_DATA_TRANS("signaled !\n");
@@ -41,7 +44,7 @@ static void PAGE_handler(struct message *message) {
     }
     memcpy(addr_op, addr_np, PAGE_SIZE);
     // if someone is synching we wake him up
-    synching = page_state[*page_id];
+    synching = page_in_transit[*page_id];
     pthread_mutex_unlock(page_mtx + *page_id);
 
     if (synching) signal_page(*page_id);
@@ -138,7 +141,7 @@ static void DT_LEAVE_handler(struct message *message) {
     node_copy(page_owners + *page_id, new_owner);
     // we are actually synching this page we emmit a new ASK_PAGE to the
     // right owner
-    if (page_state[*page_id]) {
+    if (page_in_transit[*page_id]) {
         // just reuse the same message because it's the same structure
         // new_owner now is considered as a requester
         node_copy(new_owner, &me);

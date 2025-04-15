@@ -1,11 +1,12 @@
 #include "data_transfer.h"
 #include "data_transfer_utils.h"
 
-struct node_id *page_owners;
+static struct node_id *page_owners;
 
 void set_new_owner(size_t page_id, struct node_id *new_owner) {
     pthread_mutex_lock(page_mtx + page_id);
     node_copy(page_owners + page_id, new_owner);
+    page_state[page_id] = 0;
     pthread_mutex_unlock(page_mtx + page_id);
 }
 
@@ -13,11 +14,11 @@ void sync_page(size_t page_id){
     // check if we are already the owner
     pthread_mutex_lock(page_mtx + page_id);
     struct node_id *owner = page_owners + page_id;
-    if (node_equal(page_owners + page_id, &me)) {
+    if (node_equal(page_owners + page_id, &me) || page_state[page_id]) {
         pthread_mutex_unlock(page_mtx + page_id);
         return;
     }
-    page_state[page_id] = 1;
+    page_in_transit[page_id] = 1;
     pthread_mutex_unlock(page_mtx + page_id);
     
     // ask for a page and wait until the page is synched
@@ -39,12 +40,16 @@ void init_data_transfer(unsigned int nb_pages, struct node_id* owners) {
     page_owners = malloc(nb_pages * sizeof(struct node_id));
     page_mtx = malloc(nb_pages * sizeof(pthread_mutex_t));
     page_cond = malloc(nb_pages * sizeof(pthread_cond_t));
+    page_in_transit = malloc(nb_pages * sizeof(char));
     page_state = malloc(nb_pages * sizeof(char));
     for (unsigned int i = 0; i < nb_pages; i++) {
         pthread_mutex_init(page_mtx + i, NULL);
         pthread_cond_init(page_cond + i, NULL);
-        page_state[i] = 0;
-        if (!owners) node_copy(page_owners + i, &me);
+        page_in_transit[i] = 0;
+        if (!owners) {
+            node_copy(page_owners + i, &me);
+            page_state[i] = 0;
+        }else page_state[i] = 1;
     }
     if (owners) {
         memcpy(page_owners, owners, sizeof(struct node_id) * nb_pages);
@@ -59,6 +64,7 @@ void clean_data_transfer() {
     }
     free(page_mtx);
     free(page_cond);
+    free(page_in_transit);
     free(page_state);
 }
 
@@ -70,7 +76,7 @@ void leave_data_transfer(struct node_id *new_owner) {
     for (size_t i = 0; i < nb_pages; i++) {
         // look for the pages we own
         if (node_equal(page_owners + i, &me)) {
-            page_state[i] = 1;
+            page_in_transit[i] = 1;
 
             LOG_DATA_TRANS("Inform new Owner\n");
             size_t ms_sz;
@@ -88,7 +94,7 @@ void leave_data_transfer(struct node_id *new_owner) {
                 if (node_equal(&n->node, &me) || node_equal(&n->node, new_owner))
                     continue;
                 // no mutex prot is needed because we are the only one using it here
-                page_state[i] = 1;
+                page_in_transit[i] = 1;
 
                 size_t ms_sz;
                 struct message *msg = build_DT_LEAVE_message(i, new_owner, &ms_sz);

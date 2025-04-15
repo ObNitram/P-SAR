@@ -21,8 +21,6 @@
     #define ENSURE_WARNING_DATA_TRANS(condition, fmt, ...) 0
 #endif
 
-extern struct node_id *page_owners;
-
 extern void set_new_owner(size_t page_id, struct node_id *new_owner);
 
 extern void sync_page(size_t index);
