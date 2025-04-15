@@ -1,6 +1,9 @@
 #include "data_transfer.h"
 #include "../utils/utils.h"
 #include "../sigsegv_handler/sigsegv.h"
+#include "../core/core.h"
+#include "network/cond_var.h"
+#include <pthread.h>
 #include <stdlib.h>
 
 struct node_id *page_owners;
@@ -9,7 +12,10 @@ void set_new_owner(size_t page_id, struct node_id *new_owner) {
     node_copy(page_owners + page_id, new_owner);
 }
 
+static struct cond_var wait_RECV_PAGE = COND_VAR_INIT;
 static void RECV_PAGE_handler(struct message *message) {
+    pthread_mutex_lock(&wait_RECV_PAGE.lock);
+
     size_t *page_id = (size_t *) (message + 1);
     void *addr_np = (void *) (page_id + 1);
     void *addr_p = dsm + (*page_id) * PAGE_SIZE;
@@ -17,6 +23,10 @@ static void RECV_PAGE_handler(struct message *message) {
     memory_unlock_write(*page_id);
     memcpy(addr_p, addr_np, PAGE_SIZE);
     memory_lock_reset(*page_id);
+  
+    wait_RECV_PAGE.predicate = true;
+    pthread_cond_signal(&wait_RECV_PAGE.cond);
+    pthread_mutex_unlock(&wait_RECV_PAGE.lock);
 }
 
 static void transfer_page(struct node_id *requester, size_t page_id) {
@@ -59,8 +69,7 @@ void sync_page(size_t page_id){
     size_t * index_p = (size_t *) (msg + 1);
     *index_p = page_id;
     node_copy((struct node_id *) (index_p + 1), &me);
-    send_message(page_owners + page_id, msg, ms_sz);
-    free_message(wait_message(RECV_PAGE, NULL));
+    send_wait_message(page_owners + page_id, msg, ms_sz, &wait_RECV_PAGE);
     LOG_DATA_TRANS("synced page %zu\n", page_id);
     free_message(msg);
 }
