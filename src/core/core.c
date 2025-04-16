@@ -9,23 +9,6 @@
 #include <semaphore.h>
 #include <pthread.h>
 
-struct request {
-	enum lock_type mode;
-	struct node_id who;
-	struct list_head next;
-};
-
-struct core_info {
-	enum lock_status mode;
-	struct list_head request;
-	struct node_id have_token;
-	sem_t write_auto_lock;
-	struct cond_var cond;
-};
-
-static struct core_info *core_info;
-static size_t core_size;
-
 /// @brief Structure representing a message for the slsm algorithm
 /// @details Contains the type of the message, the identifier of the sender, the page, the mode and the initiator.
 struct slsm_message {
@@ -36,7 +19,31 @@ struct slsm_message {
 	struct node_id initiator;
 };
 
-static inline void add_request(struct core_info *working_page,
+/// @brief
+/// @details
+struct request {
+	enum lock_type mode;
+	struct node_id who;
+	struct list_head next;
+};
+
+/// @brief
+/// @details
+static struct core_info {
+	enum lock_status mode;
+	struct list_head request;
+	struct node_id have_token;
+	sem_t write_auto_lock; // replace with pthread_mutex ??
+	struct cond_var cond;
+} *core_info;
+static size_t core_size;
+
+/// @brief
+/// @details
+/// @param working_page
+/// @param who
+/// @param mode
+static void add_request(struct core_info *working_page,
 			       struct node_id *who, enum lock_type mode)
 {
 	struct request *req = (struct request *)malloc(sizeof(struct request));
@@ -45,8 +52,12 @@ static inline void add_request(struct core_info *working_page,
 	list_add(&req->next, &working_page->request);
 }
 
-static inline void remove_request(struct core_info *working_page,
-				  struct node_id *who)
+/// @brief
+/// @details
+/// @param working_page
+/// @param who
+static void remove_request(const struct core_info *working_page,
+				  const struct node_id *who)
 {
 	struct request *c, *tmp;
 	list_for_each_entry_safe(c, tmp, &working_page->request, next) {
@@ -58,7 +69,11 @@ static inline void remove_request(struct core_info *working_page,
 	}
 }
 
-static inline struct request *find_last_writer(struct core_info *working_page)
+/// @brief
+/// @details
+/// @param working_page
+static struct request *
+find_last_writer(const struct core_info *working_page)
 {
 	struct request *last_writer;
 	list_for_each_entry_reverse(last_writer, &working_page->request, next) {
@@ -68,9 +83,15 @@ static inline struct request *find_last_writer(struct core_info *working_page)
 	return NULL;
 }
 
-static inline void send_slsm_message(enum message_type msgt,
-				     struct node_id *sender, enum lock_type m,
-				     size_t pid)
+/// @brief
+/// @details
+/// @param msgt
+/// @param sender
+/// @param m
+/// @param pid
+static void send_slsm_message(const enum message_type msgt,
+				     const struct node_id *sender,
+				     const enum lock_type m, const size_t pid)
 {
 	struct slsm_message request = {
 		.message_type = msgt,
@@ -82,9 +103,16 @@ static inline void send_slsm_message(enum message_type msgt,
 		     sizeof(struct slsm_message));
 }
 
-static inline void send_wait_slsm_message(enum message_type msgt,
-					  struct node_id *sender,
-					  enum lock_type m, size_t pid,
+/// @brief
+/// @details
+/// @param msgt
+/// @param sender
+/// @param m
+/// @param pid
+/// @param cond
+static void send_wait_slsm_message(const enum message_type msgt,
+					  const struct node_id *sender,
+					  const enum lock_type m, size_t pid,
 					  struct cond_var *cond)
 {
 	struct slsm_message request = {
@@ -94,10 +122,10 @@ static inline void send_wait_slsm_message(enum message_type msgt,
 		.page = pid,
 	};
 	send_wait_message_nolock(sender, (struct message *)&request,
-			  sizeof(struct slsm_message), cond);
+				 sizeof(struct slsm_message), cond);
 }
 
-void ask_lock(size_t page_id, enum lock_type request_mode)
+void ask_lock(const size_t page_id, const enum lock_type request_mode)
 {
 	struct core_info *working_page = core_info + page_id;
 
@@ -129,7 +157,7 @@ void ask_lock(size_t page_id, enum lock_type request_mode)
 	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
-static void handle_local_UNLOCK(int page_id, struct node_id *from)
+static void handle_local_UNLOCK(const int page_id, const struct node_id *from)
 {
 	struct core_info *working_page = core_info + page_id;
 	//read_request <- read_request / {j}
@@ -156,7 +184,7 @@ static void handle_local_UNLOCK(int page_id, struct node_id *from)
 	}
 }
 
-void unlock(size_t page_id, enum lock_type lock_type)
+void unlock(const size_t page_id, const enum lock_type lock_type)
 {
 	struct core_info *working_page = core_info + page_id;
 
@@ -277,7 +305,7 @@ static void handle_ASK_LOCK(struct message *message)
 					add_request(working_page,
 						    &request.initiator,
 						    request.mode);
-                }
+				}
 				//else :
 			} else {
 				//request <- request U {j}
@@ -341,7 +369,7 @@ static void handle_UNLOCK(struct message *message)
 	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
-void init_core(size_t nbpages, struct node_id *have_token)
+void init_core(const size_t nbpages, const struct node_id *have_token)
 {
 	pthread_mutexattr_t Attr;
 	pthread_mutexattr_init(&Attr);
@@ -365,7 +393,7 @@ void init_core(size_t nbpages, struct node_id *have_token)
 	addHandler(GET_LOCK, NULL, handle_GET_LOCK);
 }
 
-void clean_core()
+void clean_core(void)
 {
 	struct request *c, *tmp;
 	for (int i = 0; i < core_size; i++) {
@@ -381,7 +409,28 @@ void clean_core()
 	core_info = NULL;
 }
 
-enum lock_status get_lock_status(size_t page_id)
+enum lock_status get_lock_status(const size_t page_id)
 {
-    return core_info[page_id].mode;
+	return core_info[page_id].mode;
+}
+
+int leave_core(const struct node_id delegate)
+{
+	// prendre les verrou sur les pages dont on a acces et deverrouiller les page en cours d'acces
+	for (int i = 0; i > core_size; i++) {
+		if (core_info[i].mode != NONE) {
+			
+		}
+	}
+
+	//notifier le noeud qu'il va recevoir le token sur certaine page (comme il recois ce message c'est que la page a été lock donc si il l'a demande il ne peux pas avoir recu de reponse)
+
+	//envoyer les requetes mise en cache
+
+	//notifier tous les noeud du depart de ce noeud
+
+	//deverrouiller pour executer les handler
+
+	//logiquement il faut executer clean_core ??
+	return 0;
 }
