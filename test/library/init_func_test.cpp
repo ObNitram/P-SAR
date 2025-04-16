@@ -79,7 +79,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 		free_DSM();
 		wait(NULL);
 		nb_pages = 0;
-		nb_pages = 0;
+		nb_nodees = 0;
 	} else {
 		// wait until INIT is setup
 		sleep(1);
