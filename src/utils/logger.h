@@ -40,10 +40,10 @@ extern FILE *g_log_stream;
 /// @param file The source file name.
 /// @param function The function name.
 /// @param line The line number.
-extern void log_message_internal(const char *level, const char *message, const char *file,
+void log_message_internal(const char *level, const char *message, const char *file,
                           const char *function, const int line);
 
-#ifndef IGNORE
+#ifndef DISABLE_LOG
 
 /// @brief Variadic macro wrapper for log_message_internal to automatically include file, function, and line information.
 /// @param level The logging level.

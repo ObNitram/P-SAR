@@ -1,4 +1,4 @@
-#define IGNORE
+#define DISABLE_LOG
 
 #include "network.h"
 #include "../library.h"
