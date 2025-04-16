@@ -1,19 +1,13 @@
+#define IGNORE
+
 #include "network.h"
 #include "../library.h"
 #include "network/cond_var.h"
-#include "network/message.h"
 #include "utils/logger.h"
-#include "utils/utils.h"
 
-#include <assert.h>
-#include <netinet/in.h>
 #include <pthread.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
-#include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 
@@ -98,6 +92,7 @@ static int add_connection(const struct node_id node, const int socket)
 /// @return 0 on success or -1 if socket is valid.
 static int replace_socket(const struct node_id *node, const int socket)
 {
+	pthread_mutex_lock(&con_buff_lock);
 	int i = 0;
 	for (i = 0; i < buffer_size; i++) {
 		if (node_equal(&connection_buffer[i].node, node)) {
