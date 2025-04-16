@@ -65,7 +65,9 @@ static void send_invalidation(size_t page_index) {
     msg->message_type = INVALIDATION;
     size_t * page_id = (size_t *)(msg + 1);
     *page_id = page_index;
+    pthread_mutex_lock(&umtx);
     broadcast_message(msg, msg_size);
+    pthread_mutex_unlock(&umtx);
     free_message(msg);
 }
 

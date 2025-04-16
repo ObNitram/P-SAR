@@ -12,7 +12,9 @@ static bool in_dsm = 0;
 static void NEW_NODE_handler(struct message *message)
 {
 	struct node_id *new_node = &((struct NEW_NODE_message *) message)->new_node;
+	pthread_mutex_lock(&umtx);
 	add_to_nodes(&node_list, new_node->host, new_node->port);
+	pthread_mutex_unlock(&umtx);
 }
 
 static void JOIN_DSM_handler(struct message *message)
@@ -25,6 +27,7 @@ static void JOIN_DSM_handler(struct message *message)
 
 	request_CS();
 
+	pthread_mutex_lock(&umtx);
 	struct NEW_NODE_message * msg = build_NEW_NODE_message(&message->sender);
 	broadcast_message((struct message *)msg, sizeof(struct NEW_NODE_message));
 	free_message((struct message *)msg);
@@ -35,6 +38,7 @@ static void JOIN_DSM_handler(struct message *message)
 	send_message(&message->sender, (struct message *)dsm_info, sz);
 	add_to_nodes(&node_list, message->sender.host, message->sender.port);
 	free_message((struct message *)dsm_info);
+	pthread_mutex_unlock(&umtx);
 
 	release_CS();
 }
@@ -57,11 +61,13 @@ static void INFO_DSM_handler(struct message *message)
 
 	void *addr = idsm + 1;
 
+	pthread_mutex_lock(&umtx);
 	struct node_id *n = (struct node_id *) addr;
 	for (unsigned int i = 0; i < idsm->nb_nodes; i++) {
 		add_to_nodes(&node_list ,n->host, n->port);
 		n++;	
 	}
+	pthread_mutex_unlock(&umtx);
 
 	init_data_transfer(nb_pages, n);
 
@@ -99,6 +105,7 @@ void *Init_DSM(size_t size, const char* interface, int port)
 		return NULL;
 	}
 	init_CS(&EMPTY_NODE, 1, 0);
+	init_nodes(&node_list);
 	start_server(port, interface);
 	set_all_handlers();
 
@@ -106,7 +113,6 @@ void *Init_DSM(size_t size, const char* interface, int port)
 
 	init_core(nb_pages, &me);
 	init_data_transfer(nb_pages, NULL);
-	init_nodes(&node_list);
 	
 	signal_in_dsm();
 	return dsm;
@@ -121,10 +127,10 @@ void free_DSM(void)
 void *join_DSM(const char *host, int connect_port, const char *interface,
 			   int server_port)
 {
+	init_nodes(&node_list);
 	start_server(server_port, interface);
 	set_all_handlers();
 
-	init_nodes(&node_list);
 	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
 	init_CS(nd, 0, 0);
 

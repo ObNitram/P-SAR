@@ -13,6 +13,7 @@ struct node_list {
 };
 
 // maybe these global vars should be protected by a mutex ?
+extern pthread_mutex_t umtx;
 extern struct node_list node_list;
 extern unsigned int nb_nodees;
 extern void *dsm;

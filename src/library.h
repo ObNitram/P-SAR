@@ -23,6 +23,9 @@
     if you want to setup the debug mode, you have to ' export LIBRARY_DEBUG '
     to disable it just 'unset LIBRARY_DEBUG'
 */
+
+#define LIBRARY_DEBUG
+
 #ifdef LIBRARY_DEBUG
     #include "utils/logger.h"
     #define LOG_LIBRARY(fmt, ...) log_info(fmt, ##__VA_ARGS__)

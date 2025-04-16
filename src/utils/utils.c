@@ -1,5 +1,6 @@
 #include "utils.h"
 
+pthread_mutex_t umtx = PTHREAD_MUTEX_INITIALIZER;
 void *dsm = NULL;
 unsigned int nb_pages = 0;
 unsigned int nb_nodees = 0;
