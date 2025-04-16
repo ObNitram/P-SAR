@@ -12,7 +12,7 @@ extern "C" {
 
 
 static const char *addr_init = "127.0.0.1";
-static const int init_port = 2451;
+static const int init_port = 2450;
 static const int nb_nodes_ = 5;
 
 struct node_id creator = {.host = "127.0.0.1", .port = init_port};
@@ -23,6 +23,11 @@ struct node_id joiner4 = {.host = "127.0.0.1", .port = init_port + 4};
 struct node_id joiner5 = {.host = "127.0.0.1", .port = init_port + 5};
 
 struct node_id all_nodes[6] = {creator, joiner1, joiner2, joiner3, joiner4, joiner5};
+
+static void wait_all(void) {
+    for (unsigned int i = 0; i<nb_nodes_; i++)
+        wait(NULL);
+}
 
 static void clear_DSM(void)
 {
@@ -52,7 +57,7 @@ static int check_node_list_equality(int start_index)
     return 1;
 }
 
-TEST(multiple_joins, try_multiple_joiner_at_same_time_to_the_same_node) {
+TEST(multiple_joins, try_join_the_same_node) {
     init_logger(stdout);
 
     log_info("started test\n");
@@ -110,5 +115,127 @@ TEST(multiple_joins, try_multiple_joiner_at_same_time_to_the_same_node) {
     ASSERT_EQ(check_node_list_equality(0+1), 1);
 
     clear_DSM();
+    wait_all();
+}
 
+TEST(multiple_joins, try_join_in_a_queue) {
+    init_logger(stdout);
+
+    log_info("started test\n");
+
+    for (int i = 1; i<=5; i++) {
+        pid_t pid = fork();
+        if (!pid) {
+            sleep(i);
+            switch (i) {
+                case 1:
+                    join_DSM(creator.host, creator.port, LOCALHOST, joiner1.port);
+                    break;
+
+                case 2:
+                    join_DSM(joiner1.host, joiner1.port, LOCALHOST, joiner2.port);
+                    break;
+
+                case 3:
+                    join_DSM(joiner2.host, joiner2.port, LOCALHOST, joiner3.port);
+                    break;
+
+                case 4:
+                    join_DSM(joiner3.host, joiner3.port, LOCALHOST, joiner4.port);
+                    break;
+
+                default:
+                    join_DSM(joiner4.host, joiner4.port, LOCALHOST, joiner5.port);
+                    break;
+            }
+
+            log_info("Node %d in the DSM\n", i);
+
+            while(nb_nodees < nb_nodes_) {
+                // a little dirty but we must wait here until
+                // each node has joined the DSM
+                sleep(1);
+            }
+
+            ASSERT_EQ(check_node_list_equality(i+1)%6, 1);
+
+            clear_DSM();
+            exit(0);
+        }
+    }
+
+    Init_DSM(PAGE_SIZE, LOCALHOST, creator.port);
+
+    log_info("me CREATOR ready\n");
+
+    while(nb_nodees < nb_nodes_) {
+        // a little dirty but we must wait here until
+        // each node has joined the DSM
+        sleep(1);
+    }
+    ASSERT_EQ(check_node_list_equality(0+1), 1);
+
+    clear_DSM();
+    wait_all();
+}
+
+TEST(multiple_joins, try_join_any_node) {
+    init_logger(stdout);
+
+    log_info("started test\n");
+
+    for (int i = 1; i<=5; i++) {
+        pid_t pid = fork();
+        if (!pid) {
+            sleep(i);
+            switch (i) {
+                case 1:
+                    join_DSM(creator.host, creator.port, LOCALHOST, joiner1.port);
+                    break;
+
+                case 2:
+                    join_DSM(joiner1.host, joiner1.port, LOCALHOST, joiner2.port);
+                    break;
+
+                case 3:
+                    join_DSM(joiner1.host, joiner1.port, LOCALHOST, joiner3.port);
+                    break;
+
+                case 4:
+                    join_DSM(joiner2.host, joiner2.port, LOCALHOST, joiner4.port);
+                    break;
+
+                default:
+                    join_DSM(joiner3.host, joiner3.port, LOCALHOST, joiner5.port);
+                    break;
+            }
+
+            log_info("Node %d in the DSM\n", i);
+
+            while(nb_nodees < nb_nodes_) {
+                // a little dirty but we must wait here until
+                // each node has joined the DSM
+                sleep(1);
+            }
+
+            ASSERT_EQ(check_node_list_equality(i+1)%6, 1);
+
+            clear_DSM();
+            exit(0);
+        }
+    }
+
+    Init_DSM(PAGE_SIZE, LOCALHOST, creator.port);
+
+    log_info("me CREATOR ready\n");
+
+    while(nb_nodees < nb_nodes_) {
+        // a little dirty but we must wait here until
+        // each node has joined the DSM
+        sleep(1);
+    }
+    ASSERT_EQ(check_node_list_equality(0+1), 1);
+
+    clear_DSM();
+    wait_all();
 }

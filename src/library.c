@@ -7,6 +7,7 @@
 
 // 1 if we have joined the DSM else 0
 static struct cond_var cv = COND_VAR_INIT;
+static bool in_dsm = 0;
 
 static void NEW_NODE_handler(struct message *message)
 {
@@ -18,7 +19,7 @@ static void JOIN_DSM_handler(struct message *message)
 {
 	// wait until we are in the DSM
 	pthread_mutex_lock(&cv.lock);
-	while (!cv.predicate) 
+	while (!in_dsm) 
 		pthread_cond_wait(&cv.cond, &cv.lock);
 	pthread_mutex_unlock(&cv.lock);
 
@@ -38,11 +39,11 @@ static void JOIN_DSM_handler(struct message *message)
 	release_CS();
 }
 
-static void signal_in_dsm()
+static void signal_in_dsm(void)
 {
-	LOG_LIBRARY("signaled \n");
 	pthread_mutex_lock(&cv.lock);
 	cv.predicate = 1;
+	in_dsm = 1;
 	pthread_cond_broadcast(&cv.cond);
 	pthread_mutex_unlock(&cv.lock);
 }

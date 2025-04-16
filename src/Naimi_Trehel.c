@@ -4,6 +4,7 @@ static bool token;
 static bool requesting;
 static bool leaving;
 static bool acked;
+static unsigned int users = 0;
 static struct node_id father;
 static struct node_id next;
 // mutex to manage data race 
@@ -55,6 +56,7 @@ void request_CS() {
     pthread_mutex_lock(&mtx);
     requesting = 1;
     if (token == 1) {
+        users++;
         pthread_mutex_unlock(&mtx);
         return;
     }
@@ -62,16 +64,21 @@ void request_CS() {
         send_request_to_father(&me);
     }
     while(!token) pthread_cond_wait(&cond, &mtx);
+
+    users++;
     pthread_mutex_unlock(&mtx);
 }
 
 void release_CS() {
     pthread_mutex_lock(&mtx);
-    requesting = 0;
-    if (!node_equal(&next, &EMPTY_NODE)) {
-        send_token(&next);
-        token = 0;
-        node_copy(&next, &EMPTY_NODE);
+    users--;
+    if (!users) {
+        requesting = 0;
+        if (!node_equal(&next, &EMPTY_NODE)) {
+            send_token(&next);
+            token = 0;
+            node_copy(&next, &EMPTY_NODE);
+        }
     }
     pthread_mutex_unlock(&mtx);
 }
@@ -82,6 +89,7 @@ static void init_internal_data(const struct node_id *father_init,
     requesting = requesting_init;
     leaving = 0;
     acked = 0;
+    users = 0;
     node_copy(&father, father_init);
     node_copy(&next, &EMPTY_NODE);
 }
