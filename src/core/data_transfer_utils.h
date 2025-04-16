@@ -24,7 +24,6 @@ static void signal_page(size_t page_id) {
     page_state[page_id] = 1;
     pthread_cond_broadcast(page_cond + page_id);
     pthread_mutex_unlock(page_mtx + page_id);
-    LOG_DATA_TRANS("signaled !\n");
 }
 
 static void PAGE_handler(struct message *message) {
@@ -42,13 +41,12 @@ static void PAGE_handler(struct message *message) {
     if (message->message_type == RECV_PAGE ||
                 node_equal(&message->sender, page_owners + *page_id)) {
         node_copy(page_owners + *page_id, owner);
-    }
-    memcpy(addr_op, addr_np, PAGE_SIZE);
-    // if someone is synching we wake him up
-    synching = page_in_transit[*page_id];
-    pthread_mutex_unlock(page_mtx + *page_id);
-    if (synching) signal_page(*page_id);
-    LOG_DATA_TRANS("finished PAGE_HANDLER\n");
+        memcpy(addr_op, addr_np, PAGE_SIZE);
+        // if someone is synching we wake him up
+        synching = page_in_transit[*page_id];
+        pthread_mutex_unlock(page_mtx + *page_id);
+        if (synching) signal_page(*page_id);
+    }else pthread_mutex_unlock(page_mtx + *page_id);
 }
 
 static struct message *build_PAGE_message(size_t page_id, size_t *sz,
