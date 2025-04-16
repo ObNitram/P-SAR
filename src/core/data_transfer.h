@@ -27,3 +27,7 @@ extern void sync_page(size_t index);
 extern void init_data_transfer(unsigned int nb_pages, struct node_id* owners);
 
 extern void clean_data_transfer();
+
+
+
+extern void get_page_owners(void *dst);

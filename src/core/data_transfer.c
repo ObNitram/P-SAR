@@ -1,76 +1,40 @@
+#include <pthread.h>
+#include <stdlib.h>
+
 #include "data_transfer.h"
 #include "../utils/utils.h"
 #include "../sigsegv_handler/sigsegv.h"
 #include "../core/core.h"
 #include "network/cond_var.h"
-#include <pthread.h>
-#include <stdlib.h>
+#include "data_transfer_utils.h"
 
 struct node_id *page_owners;
 
 void set_new_owner(size_t page_id, struct node_id *new_owner) {
+    pthread_mutex_lock(page_mtx + page_id);
     node_copy(page_owners + page_id, new_owner);
-}
-
-static struct cond_var wait_RECV_PAGE = COND_VAR_INIT;
-static void RECV_PAGE_handler(struct message *message) {
-    pthread_mutex_lock(&wait_RECV_PAGE.lock);
-
-    size_t *page_id = (size_t *) (message + 1);
-    void *addr_np = (void *) (page_id + 1);
-    void *addr_p = dsm + (*page_id) * PAGE_SIZE;
-    node_copy(page_owners + *page_id, &message->sender);
-    memory_unlock_write(*page_id);
-    memcpy(addr_p, addr_np, PAGE_SIZE);
-    memory_lock_reset(*page_id);
-  
-    wait_RECV_PAGE.predicate = true;
-    pthread_cond_signal(&wait_RECV_PAGE.cond);
-    pthread_mutex_unlock(&wait_RECV_PAGE.lock);
-}
-
-static void transfer_page(struct node_id *requester, size_t page_id) {
-    void *addr_pg = dsm + PAGE_SIZE * page_id;
-    size_t ms_sz = sizeof(struct message) + sizeof(size_t)
-                                          + PAGE_SIZE;
-    struct message *msg = malloc(ms_sz);
-    msg->message_type = RECV_PAGE;
-    size_t *index_p = (size_t * ) (msg + 1);
-    *index_p = page_id;
-    memory_unlock_read(page_id);
-    memcpy(index_p + 1, addr_pg, PAGE_SIZE);
-    memory_lock_reset(page_id);
-    send_message(requester, msg, ms_sz);
-    free_message(msg);
-}
-
-static void ASK_PAGE_handler(struct message *message) {
-    size_t *page_id = (size_t *) (message + 1);
-    struct node_id *requester = (struct node_id *) (page_id + 1);
-    struct node_id *owner = page_owners + *page_id;
-    if (node_equal(owner, &me)) {
-        transfer_page(requester, *page_id);
-    }else{
-        send_message(owner, message, 
-            sizeof(struct message) + sizeof(size_t) + 
-            sizeof(struct node_id));
-    }
+    page_state[page_id] = 0;
+    pthread_mutex_unlock(page_mtx + page_id);
 }
 
 void sync_page(size_t page_id){
-    // TODO set a dirty bit
-    if (node_equal(page_owners + page_id, &me)) {
+    // check if we are already the owner
+    pthread_mutex_lock(page_mtx + page_id);
+    struct node_id *owner = page_owners + page_id;
+    if (node_equal(page_owners + page_id, &me) || page_state[page_id]) {
+        pthread_mutex_unlock(page_mtx + page_id);
         return;
     }
-    size_t ms_sz =  sizeof(struct message) + sizeof(size_t) +
-                    sizeof(struct node_id);
-    struct message *msg = malloc(ms_sz);
-    msg->message_type = ASK_PAGE;
-    size_t * index_p = (size_t *) (msg + 1);
-    *index_p = page_id;
-    node_copy((struct node_id *) (index_p + 1), &me);
-    send_wait_message(page_owners + page_id, msg, ms_sz, &wait_RECV_PAGE);
-    LOG_DATA_TRANS("synced page %zu\n", page_id);
+    page_in_transit[page_id] = 1;
+    pthread_mutex_unlock(page_mtx + page_id);
+
+    // ask for a page and wait until the page is synched
+    size_t ms_sz;
+    struct message *msg = build_ASK_PAGE_message(page_id, &ms_sz);
+    send_message(owner, msg, ms_sz);
+    LOG_DATA_TRANS("waiting for page %zu\n", page_id);
+    wait_signal(page_id);
+    LOG_DATA_TRANS("synched page %zu\n", page_id);
     free_message(msg);
 }
 
@@ -78,14 +42,39 @@ void init_data_transfer(unsigned int nb_pages, struct node_id* owners) {
     addHandler(RECV_PAGE, NULL, RECV_PAGE_handler);
     addHandler(ASK_PAGE, NULL, ASK_PAGE_handler);
     page_owners = malloc(nb_pages * sizeof(struct node_id));
+    page_mtx = malloc(nb_pages * sizeof(pthread_mutex_t));
+    page_cond = malloc(nb_pages * sizeof(pthread_cond_t));
+    page_in_transit = malloc(nb_pages * sizeof(bool));
+    page_state = malloc(nb_pages * sizeof(bool));
+
+    for (unsigned int i = 0; i < nb_pages; i++) {
+        pthread_mutex_init(page_mtx + i, NULL);
+        pthread_cond_init(page_cond + i, NULL);
+        page_in_transit[i] = 0;
+        if (!owners) {
+            node_copy(page_owners + i, &me);
+            page_state[i] = 1;
+        }else page_state[i] = 0;
+    }
     if (owners) {
         memcpy(page_owners, owners, sizeof(struct node_id) * nb_pages);
-    }else {
-        for (unsigned int i = 0; i<nb_pages; i++) 
-            node_copy(page_owners + i, &me);
     }
 }
 
 void clean_data_transfer() {
     free(page_owners);
+    for (unsigned int i = 0; i < nb_pages; i++) {
+        pthread_mutex_destroy(page_mtx + i);
+        pthread_cond_destroy(page_cond + i);
+    }
+    free(page_mtx);
+    free(page_cond);
+    free(page_in_transit);
+    free(page_state);
+}
+
+void get_page_owners(void *dst) {
+    for (unsigned int i = 0; i<nb_pages; i++) pthread_mutex_lock(page_mtx + i);
+    memcpy(dst, page_owners, nb_pages * sizeof(struct node_id));
+    for (unsigned int i = 0; i<nb_pages; i++) pthread_mutex_unlock(page_mtx + i);
 }
