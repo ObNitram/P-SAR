@@ -1,9 +1,9 @@
 #include "utils.h"
 
-void *dsm;
-unsigned int nb_pages;
+void *dsm = NULL;
+unsigned int nb_pages = 0;
+unsigned int nb_nodees = 0;
 struct node_list node_list;
-unsigned int nb_nodees;
 
 const struct node_id EMPTY_NODE = {
     .host = "",
@@ -47,16 +47,19 @@ size_t get_page_index(void *adr)
     return index;
 }
 
-int node_equal(const struct node_id *node1, const struct node_id *node2){
-    return node1->port == node2->port && strcmp(node1->host, node2->host) == 0;
+bool node_equal(const struct node_id *node1, const struct node_id *node2)
+{
+    return (node1->port == node2->port) && (strcmp(node1->host, node2->host) == 0);
 }
 
-void node_copy(struct node_id *dst, const struct node_id *src) {
+void node_copy(struct node_id *dst, const struct node_id *src)
+{
 	memcpy(dst->host, src->host, INET6_ADDRSTRLEN * sizeof(char));
 	dst->port = src->port;
 }
 
-void broadcast_message(struct message * msg, size_t size) {
+void broadcast_message(struct message * msg, size_t size)
+{
 	struct node_list *node = &node_list;
 	list_for_each_entry_continue(node, &node_list.nlist, nlist) {
         send_message(&node->node, msg, size);

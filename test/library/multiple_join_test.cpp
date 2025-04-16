@@ -31,7 +31,8 @@ static void clear_DSM(void)
 	clean_data_transfer();
 	clean_core();
 	free_nodes(&node_list);
-	free_DSM();
+    nb_pages = 0;
+    nb_nodees = 0;
 } 
 
 static int check_node_list_equality(int start_index) 

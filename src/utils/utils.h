@@ -37,7 +37,9 @@ enum message_type {
     NEW_ROOT_CS, 
     RESET_CS, 
     ACK_CS,
-    LEAVE_CS
+    LEAVE_CS,
+    INVALIDATION,
+	NUMBER_OF_MSG_TYPE // keep this value to the end it indicate the number of message type in the app
 };
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
@@ -46,13 +48,13 @@ enum message_type {
 extern void init_nodes(struct node_list *list);
 
 extern struct node_list *add_to_nodes(struct node_list *list, const char *host,
-                                      const int port);
+				      const int port);
 
 extern void free_nodes(struct node_list *list);
 
 extern size_t get_page_index(void *adr);
 
-extern int node_equal(const struct node_id *node1, const struct node_id *node2);
+extern bool node_equal(const struct node_id *node1, const struct node_id *node2);
 
 extern void node_copy(struct node_id *dst, const struct node_id *src);
 
