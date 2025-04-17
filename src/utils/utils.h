@@ -31,6 +31,7 @@ enum message_type {
 	JOIN_DSM,
 	INFO_DSM,
 	NEW_NODE,
+	ACK_NODE,
 	ASK_PAGE,
 	RECV_PAGE,
 	REQUEST_CS,

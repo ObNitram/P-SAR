@@ -128,11 +128,11 @@ static void sigsev_handler(int sig, siginfo_t *info, void *ucontext)
 	}
 }
 
-static void INVALIDATION_handler(struct message *msg)
+static void INVALIDATION_handler(struct message *message)
 {
-	size_t *page_id = (size_t *)(msg + 1);
+	size_t *page_id = (size_t *)(message + 1);
 	memory_lock(*page_id);
-	set_new_owner(*page_id, &msg->sender);
+	set_new_owner(*page_id, &message->sender);
 }
 
 void *init_sigsegv(void *dsm, size_t nb_page, bool is_owner)

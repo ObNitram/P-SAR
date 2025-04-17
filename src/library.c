@@ -15,7 +15,6 @@
 #include "network/message.h"
 #include "core/core.h"
 #include "utils/utils.h"
-#define DISABLE_LOG
 #include "utils/logger.h"
 #include "library_messages.h"
 #include "Naimi_Trehel.h"
@@ -23,6 +22,41 @@
 // 1 if we have joined the DSM else 0
 static struct cond_var cv = COND_VAR_INIT;
 static bool in_dsm = false;
+static bool acked = false;
+
+static void wait_in_dsm(void)
+{
+	pthread_mutex_lock(&cv.lock);
+	while (!in_dsm)
+		pthread_cond_wait(&cv.cond, &cv.lock);
+	pthread_mutex_unlock(&cv.lock);
+}
+
+static void signal_in_dsm(void)
+{
+	pthread_mutex_lock(&cv.lock);
+	in_dsm = true;
+	cv.predicate = true;
+	pthread_cond_broadcast(&cv.cond);
+	pthread_mutex_unlock(&cv.lock);
+}
+
+static void wait_acked(void)
+{
+	pthread_mutex_lock(&cv.lock);
+	while (!acked)
+		pthread_cond_wait(&cv.cond, &cv.lock);
+	acked = false;
+	pthread_mutex_unlock(&cv.lock);
+}
+
+static void signal_acked(void)
+{
+	pthread_mutex_lock(&cv.lock);
+	acked = true;
+	pthread_cond_broadcast(&cv.cond);
+	pthread_mutex_unlock(&cv.lock);
+}
 
 static void NEW_NODE_handler(struct message *message)
 {
@@ -30,23 +64,34 @@ static void NEW_NODE_handler(struct message *message)
 		&((struct NEW_NODE_message *)message)->new_node;
 	pthread_mutex_lock(&umtx);
 	add_to_nodes(&node_list, new_node->host, new_node->port);
+	// we ack the addition of the existing node
+	struct message msg = { .message_type = ACK_NODE };
+	send_message(&message->sender, &msg, sizeof(struct message));
 	pthread_mutex_unlock(&umtx);
+}
+
+static void ACK_NODE_handler(struct message *message)
+{
+	signal_acked();
 }
 
 static void JOIN_DSM_handler(struct message *message)
 {
-	// wait until we are in the DSM
-	pthread_mutex_lock(&cv.lock);
-	while (!in_dsm)
-		pthread_cond_wait(&cv.cond, &cv.lock);
-	pthread_mutex_unlock(&cv.lock);
+	// wait until we joined the dsm
+	wait_in_dsm();
 
 	request_CS();
 
-	pthread_mutex_lock(&umtx);
 	struct NEW_NODE_message *msg = build_NEW_NODE_message(&message->sender);
-	broadcast_message((struct message *)msg,
-			  sizeof(struct NEW_NODE_message));
+	struct node_list *n1 = &node_list;
+
+	pthread_mutex_lock(&umtx);
+	list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
+		send_message(&n1->node, (struct message *)msg,
+			     sizeof(struct NEW_NODE_message));
+		// wait for the ACK from the node
+		wait_acked();
+	}
 	free_message((struct message *)msg);
 
 	size_t sz = 0;
@@ -58,15 +103,6 @@ static void JOIN_DSM_handler(struct message *message)
 	pthread_mutex_unlock(&umtx);
 
 	release_CS();
-}
-
-static void signal_in_dsm(void)
-{
-	pthread_mutex_lock(&cv.lock);
-	cv.predicate = 1;
-	in_dsm = true;
-	pthread_cond_broadcast(&cv.cond);
-	pthread_mutex_unlock(&cv.lock);
 }
 
 static void INFO_DSM_handler(struct message *message)
@@ -90,11 +126,20 @@ static void INFO_DSM_handler(struct message *message)
 	signal_in_dsm();
 }
 
+static void INVALIDATION_tmp_handler(struct message *message)
+{
+	wait_in_dsm();
+	size_t *page_id = (size_t *)(message + 1);
+	set_new_owner(*page_id, &message->sender);
+}
+
 static void set_all_handlers(void)
 {
 	addHandler(NEW_NODE, NULL, NEW_NODE_handler);
 	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
 	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
+	addHandler(INVALIDATION, NULL, INVALIDATION_tmp_handler);
+	addHandler(ACK_NODE, NULL, ACK_NODE_handler);
 }
 
 static void exclude_others(void *adr, size_t s, enum lock_type lock_type,
