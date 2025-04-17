@@ -17,7 +17,7 @@ void set_new_owner(size_t page_id, struct node_id *new_owner)
 {
 	pthread_mutex_lock(page_mtx + page_id);
 	node_copy(page_owners + page_id, new_owner);
-	page_state[page_id] = 0;
+	page_state[page_id] = false;
 	pthread_mutex_unlock(page_mtx + page_id);
 }
 
@@ -30,7 +30,7 @@ void sync_page(size_t page_id)
 		pthread_mutex_unlock(page_mtx + page_id);
 		return;
 	}
-	page_in_transit[page_id] = 1;
+	page_in_transit[page_id] = true;
 	pthread_mutex_unlock(page_mtx + page_id);
 
 	// ask for a page and wait until the page is synched
@@ -56,19 +56,16 @@ void init_data_transfer(unsigned int nb_pages, struct node_id *owners)
 	for (unsigned int i = 0; i < nb_pages; i++) {
 		pthread_mutex_init(page_mtx + i, NULL);
 		pthread_cond_init(page_cond + i, NULL);
-		page_in_transit[i] = 0;
-		if (!owners) {
+		page_in_transit[i] = false;
+		page_state[i] = !owners;
+		if (!owners)
 			node_copy(page_owners + i, &me);
-			page_state[i] = 1;
-		} else
-			page_state[i] = 0;
 	}
-	if (owners) {
+	if (owners)
 		memcpy(page_owners, owners, sizeof(struct node_id) * nb_pages);
-	}
 }
 
-void clean_data_transfer()
+void clean_data_transfer(void)
 {
 	free(page_owners);
 	for (unsigned int i = 0; i < nb_pages; i++) {

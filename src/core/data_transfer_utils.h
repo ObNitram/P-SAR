@@ -4,6 +4,7 @@
 
 #include "data_transfer.h"
 #include "../utils/utils.h"
+#include "../sigsegv_handler/sigsegv.h"
 
 /// @brief An array that contains a mutex for each page
 static pthread_mutex_t *page_mtx;
@@ -35,8 +36,8 @@ static void wait_signal(size_t page_id)
 static void signal_page(size_t page_id)
 {
 	pthread_mutex_lock(page_mtx + page_id);
-	page_in_transit[page_id] = 0;
-	page_state[page_id] = 1;
+	page_in_transit[page_id] = false;
+	page_state[page_id] = true;
 	pthread_cond_broadcast(page_cond + page_id);
 	pthread_mutex_unlock(page_mtx + page_id);
 }
@@ -51,7 +52,7 @@ static void PAGE_handler(struct message *message)
 	// np => new page | op => old page
 	void *addr_np = (void *)(owner + 1);
 	void *addr_op = dsm + (*page_id) * PAGE_SIZE;
-	char synching = 0;
+	bool synching = false;
 
 	pthread_mutex_lock(page_mtx + *page_id);
 
