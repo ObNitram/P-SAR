@@ -94,7 +94,7 @@ static inline void send_wait_slsm_message(enum message_type msgt,
 		.page = pid,
 	};
 	send_wait_message_nolock(sender, (struct message *)&request,
-			  sizeof(struct slsm_message), cond);
+				 sizeof(struct slsm_message), cond);
 }
 
 void ask_lock(size_t page_id, enum lock_type request_mode)
@@ -277,7 +277,7 @@ static void handle_ASK_LOCK(struct message *message)
 					add_request(working_page,
 						    &request.initiator,
 						    request.mode);
-                }
+				}
 				//else :
 			} else {
 				//request <- request U {j}
@@ -383,5 +383,5 @@ void clean_core()
 
 enum lock_status get_lock_status(size_t page_id)
 {
-    return core_info[page_id].mode;
+	return core_info[page_id].mode;
 }
