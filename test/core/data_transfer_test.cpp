@@ -52,12 +52,13 @@ TEST(data_transfer, join_then_try_sync_a_page)
 
 	log_info("started test\n");
 
-    pid_t pid = fork();
-    int eq = 0;
-    if (pid) {
-        
-        Init_DSM(SIZE_DSM, LOCALHOST, init_port);
-        mprotect(dsm, SIZE_DSM, PROT_READ | PROT_WRITE);
+	pid_t pid = fork();
+	int eq = 0;
+	if (pid) {
+		Init_DSM(SIZE_DSM, LOCALHOST, init_port);
+		for (size_t i = 0; i < nb_pages_; i++) {
+			memory_unlock_write(i);
+		}
 
 		eq = check_page_owners_equality();
 		ASSERT_EQ(eq, 1);
@@ -84,9 +85,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
 		// wait until INIT is setup
 		sleep(1);
 
-    	join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
-    	mprotect(dsm, SIZE_DSM, PROT_READ | PROT_WRITE);
-
+		join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
 		log_info("joined the DSM\n");
 
 		ASSERT_EQ(nb_pages, nb_pages_);
@@ -98,9 +97,10 @@ TEST(data_transfer, join_then_try_sync_a_page)
 
 		sleep(1);
 
-    	sync_page(0);
-		mprotect(dsm, SIZE_DSM, PROT_READ | PROT_WRITE);
-
+		sync_page(0);
+		for (size_t i = 0; i < nb_pages_; i++) {
+			memory_unlock_write(i);
+		}
 		log_info("synced page 0\n");
 
 		int *tab = (int *)dsm;

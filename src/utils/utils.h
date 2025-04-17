@@ -12,12 +12,12 @@ struct node_list {
 	struct list_head nlist;
 };
 
-// maybe these global vars should be protected by a mutex ?
-extern pthread_mutex_t umtx;
 extern struct node_list node_list;
 extern unsigned int nb_nodees;
 extern void *dsm;
 extern unsigned int nb_pages;
+// a mutex used to protect the globals above
+extern pthread_mutex_t umtx;
 
 extern const struct node_id EMPTY_NODE;
 extern struct node_id me;
