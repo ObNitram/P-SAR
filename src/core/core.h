@@ -11,7 +11,6 @@ enum lock_status {
 	NONE,
 };
 
-
 void ask_lock(size_t page_id, enum lock_type lock_type);
 
 void unlock(size_t page_id, enum lock_type lock_type);

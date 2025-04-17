@@ -2,10 +2,13 @@
 #include <stdatomic.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include <sys/mman.h>
 
 extern "C" {
 #include "library.h"
 #include "utils/utils.h"
+#include "core/core.h"
+#include "core/data_transfer.h"
 }
 
 
@@ -98,4 +101,6 @@ TEST(sync, mmm) {
         free_DSM();
     }
     munmap(sem_a, 2 * sizeof(sem_t));
+    nb_pages = 0;
+    nb_nodees = 0;
 }
