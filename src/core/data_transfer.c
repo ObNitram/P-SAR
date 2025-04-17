@@ -42,9 +42,9 @@ void sync_page(size_t page_id)
 	size_t ms_sz;
 	struct message *msg = build_ASK_PAGE_message(page_id, &ms_sz);
 	send_message(owner, msg, ms_sz);
-	LOG_DATA_TRANS("waiting for page %zu\n", page_id);
+	log_info("waiting for page %zu\n", page_id);
 	wait_signal(page_id);
-	LOG_DATA_TRANS("synched page %zu\n", page_id);
+	log_info("synched page %zu\n", page_id);
 	free_message(msg);
 }
 
@@ -93,9 +93,4 @@ void get_page_owners(void *dst)
 	memcpy(dst, page_owners, nb_pages * sizeof(struct node_id));
 	for (unsigned int i = 0; i < nb_pages; i++)
 		pthread_mutex_unlock(page_mtx + i);
-}
-
-void get_page_owners(void *dst)
-{
-	memcpy(dst, page_owners, nb_pages * sizeof(struct node_id));
 }
