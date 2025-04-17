@@ -1,10 +1,13 @@
-#include "data_transfer.h"
-#include "../utils/utils.h"
-#include "../sigsegv_handler/sigsegv.h"
-#include "../core/core.h"
-#include "network/cond_var.h"
 #include <pthread.h>
 #include <stdlib.h>
+
+#include "data_transfer.h"
+#include "../sigsegv_handler/sigsegv.h"
+#include "network/cond_var.h"
+#include "../utils/utils.h"
+#include "../core/core.h"
+#define DISABLE_LOG
+#include "../utils/logger.h"
 
 struct node_id *page_owners;
 
@@ -70,7 +73,7 @@ void sync_page(size_t page_id){
     *index_p = page_id;
     node_copy((struct node_id *) (index_p + 1), &me);
     send_wait_message(page_owners + page_id, msg, ms_sz, &wait_RECV_PAGE);
-    LOG_DATA_TRANS("synced page %zu\n", page_id);
+    log_info("synced page %zu\n", page_id);
     free_message(msg);
 }
 
