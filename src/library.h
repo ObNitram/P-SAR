@@ -1,23 +1,6 @@
 #pragma once
+
 #include <stddef.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <assert.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdbool.h>
-
-#include "network/network.h"
-#include "core/core.h"
-#include "core/data_transfer.h"
-#include "network/message.h"
-#include "utils/utils.h"
-#define DISABLE_LOG
-#include "utils/logger.h"
-#include "library_messages.h"
-#include "Naimi_Trehel.h"
-
 #define LOCALHOST "127.0.0.1"
 
 

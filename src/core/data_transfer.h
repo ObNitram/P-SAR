@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../network/network.h"
 #include "../network/message.h"
 
 extern struct node_id *page_owners;

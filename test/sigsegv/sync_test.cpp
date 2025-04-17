@@ -2,10 +2,13 @@
 #include <stdatomic.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include <sys/mman.h>
 
 extern "C" {
 #include "library.h"
 #include "utils/utils.h"
+#include "core/core.h"
+#include "core/data_transfer.h"
 }
 
 

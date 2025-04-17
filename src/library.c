@@ -1,13 +1,28 @@
+#include <pthread.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <assert.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdbool.h>
+
 #include "library.h"
 #include "sigsegv_handler/sigsegv.h"
 #include "utils/utils.h"
 #include "network/cond_var.h"
 #include "network/network.h"
-#include <pthread.h>
+#include "network/message.h"
+#include "core/core.h"
+#include "utils/utils.h"
+#define DISABLE_LOG
+#include "utils/logger.h"
+#include "library_messages.h"
+#include "Naimi_Trehel.h"
 
 // 1 if we have joined the DSM else 0
 static struct cond_var cv = COND_VAR_INIT;
-static bool in_dsm = 0;
+static bool in_dsm = false;
 
 static void NEW_NODE_handler(struct message *message)
 {
@@ -47,7 +62,7 @@ static void signal_in_dsm(void)
 {
 	pthread_mutex_lock(&cv.lock);
 	cv.predicate = 1;
-	in_dsm = 1;
+	in_dsm = true;
 	pthread_cond_broadcast(&cv.cond);
 	pthread_mutex_unlock(&cv.lock);
 }

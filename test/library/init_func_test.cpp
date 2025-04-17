@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <sys/mman.h>
 
 extern "C" {
 #include "library.h"
@@ -6,6 +7,7 @@ extern "C" {
 #include "network/message.h"
 #include "utils/list.h"
 #include "utils/logger.h"
+#include "utils/utils.h"
 #include "core/core.h"
 #include "core/data_transfer.h"
 }

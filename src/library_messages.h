@@ -1,7 +1,8 @@
 #pragma once
+#include <stdlib.h>
 #include "network/message.h"
 #include "utils/utils.h"
-#include <stdlib.h>
+#include "core/data_transfer.h"
 
 struct INFO_DSM_message {
 	struct message header;

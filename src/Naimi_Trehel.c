@@ -1,10 +1,18 @@
+#include <stdbool.h>
+#include <stdlib.h>
+#include <pthread.h>
+
 #include "Naimi_Trehel.h"
+#include "utils/utils.h"
+#include "network/network.h"
+#define DISABLE_LOG
+#include "utils/logger.h"
 
 static bool token;
 static bool requesting;
 static bool leaving;
 static bool acked;
-static unsigned int users = 0;
+static unsigned int users;
 static struct node_id father;
 static struct node_id next;
 // mutex to manage data race 
@@ -34,7 +42,7 @@ static void REQUEST_CS_handler(struct message *message) {
         if (requesting) {
             node_copy(&next, requester);
         }else {
-            token = 0;
+            token = false;
             send_token(requester);
         }
     }else{
@@ -47,15 +55,15 @@ static void REQUEST_CS_handler(struct message *message) {
 
 static void GET_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
-    token = 1;
+    token = true;
     pthread_cond_broadcast(&cond);
     pthread_mutex_unlock(&mtx);
 }
 
 void request_CS() {
     pthread_mutex_lock(&mtx);
-    requesting = 1;
-    if (token == 1) {
+    requesting = true;
+    if (token) {
         users++;
         pthread_mutex_unlock(&mtx);
         return;
@@ -73,10 +81,10 @@ void release_CS() {
     pthread_mutex_lock(&mtx);
     users--;
     if (!users) {
-        requesting = 0;
+        requesting = false;
         if (!node_equal(&next, &EMPTY_NODE)) {
             send_token(&next);
-            token = 0;
+            token = false;
             node_copy(&next, &EMPTY_NODE);
         }
     }
@@ -87,8 +95,8 @@ static void init_internal_data(const struct node_id *father_init,
                                bool token_init, bool requesting_init) {
     token = token_init;
     requesting = requesting_init;
-    leaving = 0;
-    acked = 0;
+    leaving = false;
+    acked = false;
     users = 0;
     node_copy(&father, father_init);
     node_copy(&next, &EMPTY_NODE);
@@ -96,7 +104,7 @@ static void init_internal_data(const struct node_id *father_init,
 
 static void ACK_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
-    acked = 1;
+    acked = true;
     pthread_cond_broadcast(&cond);
     pthread_mutex_unlock(&mtx);
 }
@@ -104,7 +112,7 @@ static void ACK_CS_handler(struct message *message) {
 static void RESET_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
     // we reset the internal data as if we called INIT_CS for the first time
-    init_internal_data(&message->sender, 0, requesting);
+    init_internal_data(&message->sender, false, requesting);
     struct message msg = {.message_type = ACK_CS};
     send_message(&message ->sender, &msg, sizeof(struct message));
     // request_CS() is a blocking function must be called at the end
@@ -116,7 +124,7 @@ static void RESET_CS_handler(struct message *message) {
 
 static void NEW_ROOT_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
-    init_internal_data(&EMPTY_NODE, 1, requesting);
+    init_internal_data(&EMPTY_NODE, true, requesting);
     if (requesting) {
         pthread_cond_signal(&cond);
     }
@@ -133,7 +141,7 @@ static void NEW_ROOT_CS_handler(struct message *message) {
 
 static void LEAVE_CS_handler(struct message *message) {
     pthread_mutex_lock(&mtx);
-    leaving = 0;
+    leaving = false;
     pthread_cond_broadcast(&cond);
     pthread_mutex_unlock(&mtx);
 }
@@ -162,7 +170,7 @@ int leave_CS() {
         pthread_mutex_unlock(&mtx);
         return -1;
     }
-    leaving = 1;
+    leaving = true;
     struct node_id *new_root = NULL;
     size_t sz;
     if (!node_equal(&next, &EMPTY_NODE)) new_root = &next;

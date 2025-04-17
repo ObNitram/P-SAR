@@ -2,8 +2,9 @@
 #include <stdlib.h>
 
 #include "data_transfer.h"
+#include "../network/network.h"
+#include "../network/cond_var.h"
 #include "../sigsegv_handler/sigsegv.h"
-#include "network/cond_var.h"
 #include "../utils/utils.h"
 #include "../core/core.h"
 #define DISABLE_LOG

@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <gtest/gtest.h>
+#include <sys/mman.h>
 
 extern "C" {
 #include "library.h"
@@ -9,6 +10,8 @@ extern "C" {
 #include "utils/logger.h"
 #include "core/core.h"
 #include "core/data_transfer.h"
+#include "utils/utils.h"
+#include "sigsegv_handler/sigsegv.h"
 }
 
 static const char *addr_init = "127.0.0.1";
