@@ -26,7 +26,8 @@ static bool in_dsm = false;
 
 static void NEW_NODE_handler(struct message *message)
 {
-	struct node_id *new_node = &((struct NEW_NODE_message *) message)->new_node;
+	struct node_id *new_node =
+		&((struct NEW_NODE_message *)message)->new_node;
 	pthread_mutex_lock(&umtx);
 	add_to_nodes(&node_list, new_node->host, new_node->port);
 	pthread_mutex_unlock(&umtx);
@@ -36,15 +37,16 @@ static void JOIN_DSM_handler(struct message *message)
 {
 	// wait until we are in the DSM
 	pthread_mutex_lock(&cv.lock);
-	while (!in_dsm) 
+	while (!in_dsm)
 		pthread_cond_wait(&cv.cond, &cv.lock);
 	pthread_mutex_unlock(&cv.lock);
 
 	request_CS();
 
 	pthread_mutex_lock(&umtx);
-	struct NEW_NODE_message * msg = build_NEW_NODE_message(&message->sender);
-	broadcast_message((struct message *)msg, sizeof(struct NEW_NODE_message));
+	struct NEW_NODE_message *msg = build_NEW_NODE_message(&message->sender);
+	broadcast_message((struct message *)msg,
+			  sizeof(struct NEW_NODE_message));
 	free_message((struct message *)msg);
 
 	size_t sz = 0;
@@ -67,20 +69,18 @@ static void signal_in_dsm(void)
 	pthread_mutex_unlock(&cv.lock);
 }
 
-static void INFO_DSM_handler(struct message *message) 
+static void INFO_DSM_handler(struct message *message)
 {
-	
-	struct INFO_DSM_message *idsm = (struct INFO_DSM_message *)
-										message;
+	struct INFO_DSM_message *idsm = (struct INFO_DSM_message *)message;
 	nb_pages = idsm->nb_pages;
 
 	void *addr = idsm + 1;
 
 	pthread_mutex_lock(&umtx);
-	struct node_id *n = (struct node_id *) addr;
+	struct node_id *n = (struct node_id *)addr;
 	for (unsigned int i = 0; i < idsm->nb_nodes; i++) {
-		add_to_nodes(&node_list ,n->host, n->port);
-		n++;	
+		add_to_nodes(&node_list, n->host, n->port);
+		n++;
 	}
 	pthread_mutex_unlock(&umtx);
 
@@ -98,23 +98,22 @@ static void set_all_handlers(void)
 }
 
 static void exclude_others(void *adr, size_t s, enum lock_type lock_type,
-						   void (*exc_func) (size_t, enum lock_type)) 
+			   void (*exc_func)(size_t, enum lock_type))
 {
 	size_t start_index = get_page_index(adr);
 	size_t end_index = get_page_index(adr + s - 1);
 	for (size_t page_id = start_index; page_id <= end_index; page_id++) {
-        memory_lock(page_id);
+		memory_lock(page_id);
 		exc_func(page_id, lock_type);
 	}
 }
 
-void *Init_DSM(size_t size, const char* interface, int port)
+void *Init_DSM(size_t size, const char *interface, int port)
 {
 	// memory init
 	nb_pages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
-	dsm = mmap(0, nb_pages * PAGE_SIZE, 
-		PROT_READ | PROT_WRITE,
-		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
+		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (dsm == MAP_FAILED) {
 		perror("map allocation failed");
 		return NULL;
@@ -124,39 +123,39 @@ void *Init_DSM(size_t size, const char* interface, int port)
 	start_server(port, interface);
 	set_all_handlers();
 
-    init_sigsegv(dsm, nb_pages, 1);
+	init_sigsegv(dsm, nb_pages, 1);
 
 	init_core(nb_pages, &me);
 	init_data_transfer(nb_pages, NULL);
-	
+
 	signal_in_dsm();
 	return dsm;
 }
 
-void free_DSM(void) 
+void free_DSM(void)
 {
 	munmap(dsm, nb_pages * PAGE_SIZE);
 	cv.predicate = 0;
 }
 
 void *join_DSM(const char *host, int connect_port, const char *interface,
-			   int server_port)
+	       int server_port)
 {
 	init_nodes(&node_list);
 	start_server(server_port, interface);
 	set_all_handlers();
 
-	struct node_id *nd = &add_to_nodes(&node_list, host, connect_port)->node;
+	struct node_id *nd =
+		&add_to_nodes(&node_list, host, connect_port)->node;
 	init_CS(nd, 0, 0);
 
-    struct message mess_joining;
+	struct message mess_joining;
 	mess_joining.message_type = JOIN_DSM;
-	send_wait_message(nd, &mess_joining, sizeof(struct message), &cv);	
+	send_wait_message(nd, &mess_joining, sizeof(struct message), &cv);
 	init_core(nb_pages, nd);
-	
-	dsm = mmap(0, nb_pages * PAGE_SIZE, 
-		PROT_READ | PROT_WRITE,
-		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
+		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (dsm == MAP_FAILED) {
 		perror("map allocation failed");
 		stop_server();
@@ -176,7 +175,6 @@ void lock_read(void *adr, size_t s)
 void unlock_read(void *adr, size_t s)
 {
 	exclude_others(adr, s, READ, unlock);
-
 }
 
 void lock_write(void *adr, size_t s)
@@ -186,6 +184,5 @@ void lock_write(void *adr, size_t s)
 
 void unlock_write(void *adr, size_t s)
 {
-
 	exclude_others(adr, s, WRITE, unlock);
 }

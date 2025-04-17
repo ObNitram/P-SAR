@@ -25,21 +25,21 @@ extern struct node_id me;
 /// @brief Represents the type of message.
 /// @details This enum defines the available message types.
 enum message_type {
-    ASK_LOCK,
-    GET_LOCK,
-    UNLOCK,
-    JOIN_DSM, 
-    INFO_DSM,
-    NEW_NODE, 
-    ASK_PAGE,
-    RECV_PAGE, 
-    REQUEST_CS,
-    GET_CS,
-    NEW_ROOT_CS, 
-    RESET_CS, 
-    ACK_CS,
-    LEAVE_CS,
-    INVALIDATION,
+	ASK_LOCK,
+	GET_LOCK,
+	UNLOCK,
+	JOIN_DSM,
+	INFO_DSM,
+	NEW_NODE,
+	ASK_PAGE,
+	RECV_PAGE,
+	REQUEST_CS,
+	GET_CS,
+	NEW_ROOT_CS,
+	RESET_CS,
+	ACK_CS,
+	LEAVE_CS,
+	INVALIDATION,
 	NUMBER_OF_MSG_TYPE // keep this value to the end it indicate the number of message type in the app
 };
 
@@ -55,7 +55,8 @@ extern void free_nodes(struct node_list *list);
 
 extern size_t get_page_index(void *adr);
 
-extern bool node_equal(const struct node_id *node1, const struct node_id *node2);
+extern bool node_equal(const struct node_id *node1,
+		       const struct node_id *node2);
 
 extern void node_copy(struct node_id *dst, const struct node_id *src);
 

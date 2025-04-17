@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-void * init_sigsegv(void * dsm, size_t nb_page, bool is_owner);
+void *init_sigsegv(void *dsm, size_t nb_page, bool is_owner);
 void exit_sigsegv();
 
 void memory_lock(size_t index);
