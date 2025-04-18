@@ -1,5 +1,5 @@
-#ifndef LOGGER_H
-#define LOGGER_H
+#pragma once
+
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
@@ -40,8 +40,19 @@ extern FILE *g_log_stream;
 /// @param file The source file name.
 /// @param function The function name.
 /// @param line The line number.
-extern void log_message_internal(char *level, char *message, const char *file,
-				 const char *function, int line);
+void log_message_internal(const char *level, const char *message,
+			  const char *file, const char *function,
+			  const int line);
+
+#if defined(DISABLE_LOG) || defined(NDEBUG)
+// Si IGNORE est défini, les macros ne font rien
+#define log_message(level, fmt, ...) ((void)0)
+#define log_debug(fmt, ...) ((void)0)
+#define log_info(fmt, ...) ((void)0)
+#define log_warning(fmt, ...) ((void)0)
+#define log_error(fmt, ...) ((void)0)
+
+#else
 
 /// @brief Variadic macro wrapper for log_message_internal to automatically include file, function, and line information.
 /// @param level The logging level.
@@ -77,6 +88,8 @@ extern void log_message_internal(char *level, char *message, const char *file,
 /// @param ... The variadic arguments to format the message.
 #define log_error(fmt, ...) log_message("ERROR", fmt, ##__VA_ARGS__)
 
+#endif
+
 /// @brief Variadic macro to ensure a condition is true.
 /// @details Checks the given condition, and if it evaluates to false, logs the provided formatted message
 /// using the specified logging level. You may extend this macro to take additional actions (like exiting the program) if needed.
@@ -109,4 +122,3 @@ extern void log_message_internal(char *level, char *message, const char *file,
 /// @param ... The variadic arguments to format the message.
 #define ensure_error(condition, fmt, ...) \
 	ensure(condition, "ERROR", fmt, ##__VA_ARGS__)
-#endif
