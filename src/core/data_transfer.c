@@ -24,10 +24,11 @@ void set_new_owner(size_t page_id, struct node_id *new_owner)
 void sync_page(size_t page_id)
 {
 	// check if we are already the owner
-	pthread_mutex_lock(&(page_cv + page_id)->lock);
+	struct cond_var *cv = page_cv + page_id;
+	pthread_mutex_lock(&cv->lock);
 	struct node_id *owner = page_owners + page_id;
 	if (node_equal(owner, &me) || page_state[page_id]) {
-		pthread_mutex_unlock(&(page_cv + page_id)->lock);
+		pthread_mutex_unlock(&cv->lock);
 		return;
 	}
 	(page_cv + page_id)->predicate = false;
@@ -41,7 +42,7 @@ void sync_page(size_t page_id)
 
 	log_info("synched page %zu\n", page_id);
 	(page_cv + page_id)->predicate = true;
-	pthread_mutex_unlock(&(page_cv + page_id)->lock);
+	pthread_mutex_unlock(&cv->lock);
 	free_message(msg);
 }
 
@@ -102,7 +103,6 @@ void leave_data_transfer(struct node_id *new_owner)
 
 			// broadcast to each other node, the info about the new owner
 			pthread_mutex_lock(&umtx);
-			size_t ms_sz;
 			msg = build_DT_LEAVE_message(i, new_owner, &ms_sz);
 			struct node_list *n = &node_list;
 			list_for_each_entry_continue(n, &node_list.nlist,

@@ -199,7 +199,7 @@ static void DT_LEAVE_handler(struct message *message)
 	node_copy(&sender, &message->sender);
 
 	pthread_mutex_lock(&cv->lock);
-	if (node_equal(old_owner, new_owner)) {
+	if (node_equal(old_owner, &sender)) {
 		node_copy(old_owner, new_owner);
 		// we are actually synching this page we emmit a new ASK_PAGE to the
 		// right owner
@@ -224,7 +224,7 @@ static void DT_LEAVE_handler(struct message *message)
 
 	// we remove the old owner from the node_list
 	pthread_mutex_lock(&umtx);
-	free(remove_node(&node_list, &message->sender));
+	free(remove_node(&node_list, &sender));
 	pthread_mutex_unlock(&umtx);
 }
 
