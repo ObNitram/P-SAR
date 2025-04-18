@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pthread.h>
-#include <stdatomic.h>
+#include <stdbool.h>
 
 /// @brief Helping structure for waiting on a predicate.
 /// @details Contains a mutex, a condition and a predicate that need to be true to unlock the condition.
@@ -9,7 +9,7 @@
 struct cond_var {
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
-	atomic_bool predicate;
+	bool predicate;
 };
 
 /// @brief Staticaly initiate a variable condition and set the predicate at false.

@@ -19,6 +19,8 @@ extern struct node_list node_list;
 extern unsigned int nb_nodees;
 extern void *dsm;
 extern unsigned int nb_pages;
+// a mutex used to protect the globals above
+extern pthread_mutex_t umtx;
 
 extern const struct node_id EMPTY_NODE;
 extern struct node_id me;
@@ -31,21 +33,25 @@ enum message_type {
 	UNLOCK,
 	JOIN_DSM,
 	INFO_DSM,
+	NEW_NODE,
+	ACK_NODE,
 	ASK_PAGE,
 	RECV_PAGE,
 	INVALIDATION,
 	SEND_STATE,
 	DELEGATE,
 	DELEGATE_ACK,
+	REQUEST_CS,
+	GET_CS,
+	NEW_ROOT_CS,
+	RESET_CS,
+	ACK_CS,
+	LEAVE_CS,
 	NUMBER_OF_MSG_TYPE // keep this value to the end it indicate the number of message type in the app
 };
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
-
-bool node_equal(const struct node_id *node1, const struct node_id *node2);
-
-void node_copy(struct node_id *dst, struct node_id *src);
 
 extern void init_nodes(struct node_list *list);
 
@@ -59,17 +65,9 @@ extern size_t get_page_index(void *adr);
 extern bool node_equal(const struct node_id *node1,
 		       const struct node_id *node2);
 
-extern void node_copy(struct node_id *dst, struct node_id *src);
+void node_copy(struct node_id *dst, const struct node_id *src);
 
 void broadcast_message(struct message *msg, size_t size_t);
 
 void broadcast_wait_message(struct message *msg, size_t size,
-			    struct counter_cond_var *counter)
-{
-	set_counter(counter, nb_nodees);
-	struct node_list *node = &node_list;
-	list_for_each_entry_continue(node, &node_list.nlist, nlist) {
-		send_message(&node->node, msg, size);
-	}
-	wait_on_counter(counter);
-}
+			    struct counter_cond_var *counter);

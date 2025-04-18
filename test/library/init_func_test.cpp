@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <sys/mman.h>
 
 extern "C" {
 #include "library.h"
@@ -6,6 +7,7 @@ extern "C" {
 #include "network/message.h"
 #include "utils/list.h"
 #include "utils/logger.h"
+#include "utils/utils.h"
 #include "core/core.h"
 #include "core/data_transfer.h"
 }
@@ -68,7 +70,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 		// wait for the node to join
 		sleep(2);
 
-		//         // check that node_list is the same as
+		// check that node_list is the same as
 		int eq = check_node_list_equality(node_list_init);
 		ASSERT_EQ(eq, 1);
 
@@ -78,6 +80,8 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 		free_nodes(&node_list);
 		free_DSM();
 		wait(NULL);
+		nb_pages = 0;
+		nb_nodees = 0;
 	} else {
 		// wait until INIT is setup
 		sleep(1);
@@ -132,4 +136,5 @@ TEST(addr_to_page, get_page_index)
 	ASSERT_EQ(index, 0);
 
 	free_DSM();
+	nb_pages = 0;
 }

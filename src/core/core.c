@@ -559,7 +559,7 @@ int leave_core(const struct node_id delegate)
 		memcpy(cursor, &pages_lock[i], sizeof(pages_lock[i]));
 		cursor += sizeof(pages_lock[i]);
 
-		serialize_requests(cursor, &working_page->request);
+		serialize_requests(cursor, working_page);
 	}
 
 	send_message(&delegate, state_message, message_size);
@@ -582,7 +582,7 @@ int leave_core(const struct node_id delegate)
 	for (int i = 0; i > core_size; i++) {
 		if (node_equal(&core_info[i].have_token, &me)) {
 			//mettre a jour le core avec delegate en tant que token owner
-			node_copy(&delegate, &core_info[i].have_token);
+			node_copy(&core_info[i].have_token, &delegate);
 			//vider les listes
 			clean_requests(&core_info[i]);
 			//mode NONE
