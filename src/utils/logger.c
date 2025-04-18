@@ -2,8 +2,9 @@
 
 FILE *g_log_stream;
 
-void log_message_internal(const char *level, const char *message, const char *file,
-			  const char *function, const int line)
+void log_message_internal(const char *level, const char *message,
+			  const char *file, const char *function,
+			  const int line)
 {
 	// Get the current time as a Unix timestamp (seconds since the epoch)
 	time_t now = time(NULL);
