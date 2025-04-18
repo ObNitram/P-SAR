@@ -87,4 +87,6 @@ TEST(data_transfer_leave, join_then_try_sync_a_page)
 
 	for (int i = 0; i < 3; i++)
 		wait(NULL);
+	nb_pages = 0;
+	nb_nodees = 0;
 }
