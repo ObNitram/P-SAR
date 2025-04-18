@@ -5,41 +5,35 @@
 #include "data_transfer.h"
 #include "../utils/utils.h"
 #include "../sigsegv_handler/sigsegv.h"
+#include "../network/cond_var.h"
 
-/// @brief An array that contains a mutex for each page
-static pthread_mutex_t *page_mtx;
-
-/// @brief An array that contains a conditoin variable for each page
-static pthread_cond_t *page_cond;
-
-/// @brief An array that represents for each page if we are synching it or not
-/// @details It takes 'true' if we are actually synching the page 'false' otherwise
-static bool *page_in_transit;
+/// @brief An array of cond_var for each page.
+/// @details The predicate is used to indicate if we are synching the page or not.
+static struct cond_var *page_cv;
 
 /// @brief An array that represents for each page if it's up-to-date or not
 /// @details It takes 'true' if the page is up-to-date 'false' otherwise
 static bool *page_state;
 
-/// @brief Wait for a page to be synched
-/// @param page_id The id of the page to wait for
-static void wait_signal(size_t page_id)
+/// @brief Signal that a page is synched
+/// @param page_id The id of the page to signal
+/// @details This functions assumes that the caller already have the lock.
+static void signal_page_no_lock(size_t page_id)
 {
-	pthread_mutex_lock(page_mtx + page_id);
-	while (page_in_transit[page_id]) {
-		pthread_cond_wait(page_cond + page_id, page_mtx + page_id);
-	}
-	pthread_mutex_unlock(page_mtx + page_id);
+	struct cond_var *cv = page_cv + page_id;
+	cv->predicate = true;
+	page_state[page_id] = true;
+	pthread_cond_broadcast(&cv->cond);
 }
 
 /// @brief Signal that a page is synched
 /// @param page_id The id of the page to signal
 static void signal_page(size_t page_id)
 {
-	pthread_mutex_lock(page_mtx + page_id);
-	page_in_transit[page_id] = false;
-	page_state[page_id] = true;
-	pthread_cond_broadcast(page_cond + page_id);
-	pthread_mutex_unlock(page_mtx + page_id);
+	struct cond_var *cv = page_cv + page_id;
+	pthread_mutex_lock(&cv->lock);
+	signal_page_no_lock(page_id);
+	pthread_mutex_unlock(&cv->lock);
 }
 
 /// @brief Handler for a message that contains a new version of a page
@@ -49,25 +43,22 @@ static void PAGE_handler(struct message *message)
 {
 	size_t *page_id = (size_t *)(message + 1);
 	struct node_id *owner = (struct node_id *)(page_id + 1);
-	// np => new page | op => old page
+	// np => new page | op => one piece
 	void *addr_np = (void *)(owner + 1);
 	void *addr_op = dsm + (*page_id) * PAGE_SIZE;
-	bool synching = false;
+	struct cond_var *cv = page_cv + *page_id;
 
-	pthread_mutex_lock(page_mtx + *page_id);
-
+	pthread_mutex_lock(&cv->lock);
 	if (message->message_type == RECV_PAGE) {
 		node_copy(page_owners + *page_id, owner);
 		memory_unlock_write(*page_id);
 		memcpy(addr_op, addr_np, PAGE_SIZE);
 		memory_lock_reset(*page_id);
 		// if someone is synching we wake him up
-		synching = page_in_transit[*page_id];
-		pthread_mutex_unlock(page_mtx + *page_id);
-		if (synching)
-			signal_page(*page_id);
-	} else
-		pthread_mutex_unlock(page_mtx + *page_id);
+		if (!cv->predicate)
+			signal_page_no_lock(*page_id);
+	}
+	pthread_mutex_unlock(&cv->lock);
 }
 
 /// @brief Build a message that contains a page, it's owner and id
@@ -143,9 +134,9 @@ static void ASK_PAGE_handler(struct message *message)
 	size_t *page_id = (size_t *)(message + 1);
 	struct node_id *requester = (struct node_id *)(page_id + 1);
 
-	pthread_mutex_lock(page_mtx + *page_id);
+	pthread_mutex_lock(&(page_cv + *page_id)->lock);
 	struct node_id *owner = page_owners + *page_id;
-	pthread_mutex_unlock(page_mtx + *page_id);
+	pthread_mutex_unlock(&(page_cv + *page_id)->lock);
 
 	if (node_equal(owner, &me)) {
 		transfer_page(requester, *page_id);
