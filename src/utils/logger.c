@@ -2,16 +2,17 @@
 
 FILE *g_log_stream;
 
-void log_message_internal(char *level, char *message, const char *file,
-    const char *function, int line)
+void log_message_internal(const char *level, const char *message,
+			  const char *file, const char *function,
+			  const int line)
 {
-// Get the current time as a Unix timestamp (seconds since the epoch)
-time_t now = time(NULL);
+	// Get the current time as a Unix timestamp (seconds since the epoch)
+	time_t now = time(NULL);
 
-// Get the process ID
-pid_t pid = getpid();
+	// Get the process ID
+	pid_t pid = getpid();
 
-// Print the formatted log message to the global log stream.
-fprintf(g_log_stream, "[%ld] [PID: %d] [%s] %s:%s:%d - %s\n",
-now, pid, level, file, function, line, message);
+	// Print the formatted log message to the global log stream.
+	fprintf(g_log_stream, "[%ld] [PID: %d] [%s] %s:%s:%d - %s\n", now, pid,
+		level, file, function, line, message);
 }

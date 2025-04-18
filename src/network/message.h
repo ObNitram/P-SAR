@@ -34,4 +34,4 @@ void free_message(struct message *message);
 /// @param message_size Total size of the message to copy (in bytes).
 /// @return Pointer to the newly allocated copy of the message, or NULL if memory allocation fails.
 struct message *copy_message(const struct message *message,
-                             const size_t message_size);
+			     const size_t message_size);

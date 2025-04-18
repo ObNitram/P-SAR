@@ -69,7 +69,7 @@ void init_data_transfer(unsigned int nb_pages, struct node_id *owners)
 		memcpy(page_owners, owners, sizeof(struct node_id) * nb_pages);
 }
 
-void clean_data_transfer()
+void clean_data_transfer(void)
 {
 	for (unsigned int i = 0; i < nb_pages; i++) {
 		pthread_mutex_destroy(&(page_cv + i)->lock);

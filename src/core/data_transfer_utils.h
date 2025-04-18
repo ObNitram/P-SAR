@@ -64,7 +64,7 @@ static void PAGE_handler(struct message *message)
 		if (!cv->predicate)
 			signal_page_no_lock(*page_id);
 	}
-	pthread_mutex_unlock(page_mtx + *page_id);
+	pthread_mutex_unlock(&cv->lock);
 }
 
 /// @brief Build a message that contains a page, it's owner and id
@@ -135,8 +135,7 @@ static struct message *build_rqst_message(size_t page_id, struct node_id *node,
 }
 
 /// @brief Handler for a message that asks for a page
-/// @param message The message that contains the id of the asked page and it's
-/// requester
+/// @param message The message that contains the id of the asked page and it's requester
 static void ASK_PAGE_handler(struct message *message)
 {
 	size_t *page_id = (size_t *)(message + 1);
