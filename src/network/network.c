@@ -4,6 +4,7 @@
 #include "../library.h"
 #include "network/cond_var.h"
 #include "utils/logger.h"
+#include <utils/utils.h>
 
 #include <pthread.h>
 #include <sys/epoll.h>
