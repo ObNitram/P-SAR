@@ -2,8 +2,11 @@
 
 #include "../network/message.h"
 #include "../network/network.h"
+#include "core/counter_cond_var.h"
+#include <pthread.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define PAGE_SIZE 4096
 
@@ -36,6 +39,10 @@ enum message_type {
 	RECV_PAGE_LEAVE,
 	DT_LEAVE,
 	ACK_RECV_PAGE,
+	INVALIDATION,
+	SEND_STATE,
+	DELEGATE,
+	DELEGATE_ACK,
 	REQUEST_CS,
 	GET_CS,
 	ACK_NODE,
@@ -43,7 +50,6 @@ enum message_type {
 	RESET_CS,
 	ACK_CS,
 	LEAVE_CS,
-	INVALIDATION,
 	NUMBER_OF_MSG_TYPE // keep this value to the end it indicate the number of message type in the app
 };
 
@@ -65,6 +71,9 @@ extern size_t get_page_index(void *adr);
 extern bool node_equal(const struct node_id *node1,
 		       const struct node_id *node2);
 
-extern void node_copy(struct node_id *dst, const struct node_id *src);
+void node_copy(struct node_id *dst, const struct node_id *src);
 
-extern void broadcast_message(struct message *msg, size_t size);
+void broadcast_message(struct message *msg, size_t size_t);
+
+void broadcast_wait_message(struct message *msg, size_t size,
+			    struct counter_cond_var *counter);

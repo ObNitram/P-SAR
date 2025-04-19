@@ -1,35 +1,7 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <pthread.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-
 #include "cond_var.h"
 #include "message.h"
-
-/* 
-    if you want to setup the debug mode, you have to ' export NETWORK_DEBUG '
-    to disable it just 'unset NETWORK_DEBUG'
-*/
-#ifdef NETWORK_DEBUG
-#include "../utils/logger.h"
-#define LOG_NETWORK(fmt, ...) log_info(fmt, ##__VA_ARGS__)
-#define ENSURE_ERROR_NETWORK(condition, fmt, ...) \
-	ensure_error(condition, fmt, ##__VA_ARGS__)
-#define ENSURE_WARNING_NETWORK(condition, fmt, ...) \
-	ensure_warning(condition, fmt, ##__VA_ARGS__)
-#else
-#define LOG_NETWORK(fmt, ...)
-#define ENSURE_ERROR_NETWORK(condition, fmt, ...) 0
-#define ENSURE_WARNING_NETWORK(condition, fmt, ...) 0
-#endif
 
 /// @brief Starts the server on the specified port.
 /// @details Initializes the server and begins listening for incoming connections on the given port.
