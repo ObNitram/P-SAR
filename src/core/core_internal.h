@@ -3,11 +3,38 @@
 #pragma once
 
 #include "core.h"
+#include "core/counter_cond_var.h"
 #include "utils/list.h"
 #include <stddef.h>
 #include "network/message.h"
 #include "utils/utils.h"
 #include <string.h>
+
+//need to move it in more suitable file
+/// @brief
+/// @details
+static void *serialize_nodeid(void *dest, const struct node_id *src)
+{
+	char *cursor = (char *)dest;
+	memcpy(cursor, src->host, sizeof(src->host));
+	cursor += sizeof(src->host);
+	memcpy(cursor, &src->port, sizeof(src->port));
+	cursor += sizeof(src->port);
+	return cursor;
+}
+
+//need to move it in more suitable file
+/// @brief
+/// @details
+static void *unserialize_nodeid(struct node_id *dest, void *src)
+{
+	char *cursor = (char *)src;
+	memcpy(dest->host, cursor, sizeof(dest->host));
+	cursor += sizeof(dest->host);
+	memcpy(&dest->port, cursor, sizeof(dest->port));
+	cursor += sizeof(dest->port);
+	return cursor;
+}
 
 /// @brief Structure representing a message for the slsm algorithm
 /// @details Contains the type of the message, the identifier of the sender, the page, the mode and the initiator.
@@ -29,15 +56,15 @@ struct slsm_message {
 /// @param pid
 /// @param cond
 static void send_slsm_message(const enum message_type msgt,
-				   const struct node_id *sender,
-				   const enum lock_type m, size_t pid,
-				   struct cond_var *cond)
+			      const struct node_id *sender,
+			      const enum lock_type m, size_t pid,
+			      struct cond_var *cond)
 {
 	struct slsm_message request = {
 		.message_type = msgt,
-		.initiator = me,
-		.mode = m,
 		.page = pid,
+		.mode = m,
+		.initiator = me,
 	};
 
 	if (cond == NULL)
@@ -50,12 +77,29 @@ static void send_slsm_message(const enum message_type msgt,
 
 /// @brief
 /// @details
-struct departure_message {
+struct delegate_message {
 	size_t message_type;
 	struct node_id sender;
 	struct node_id delegate;
 };
-#define DEPARTURE_MESSAGE_SIZE MESSAGE_SIZE + NODEID_SIZE
+#define DELEGATE_MESSAGE_SIZE MESSAGE_SIZE + NODEID_SIZE
+
+void serialize_delegate_message(void *dest, const struct delegate_message *src)
+{
+	*(struct message *)dest = *(struct message *)src;
+	serialize_nodeid((char *)dest + sizeof(struct message), &src->delegate);
+}
+
+struct delegate_message unserialize_delegate_message(const void *src)
+{
+	struct message *src_mesg = (struct message *)src;
+	struct delegate_message msg = {
+		.message_type = src_mesg->message_type,
+		.sender = src_mesg->sender,
+	};
+	unserialize_nodeid(&msg.delegate, src_mesg + 1);
+	return msg;
+}
 
 /// @brief
 /// @details
@@ -66,38 +110,15 @@ struct request {
 };
 #define REQUEST_SIZE sizeof(enum lock_type) + NODEID_SIZE
 
-//need to move it in more suitable file
-/// @brief
-/// @details
-static void *serialize_nodeid(void *dest, const struct node_id *src)
-{
-	memcpy(dest, src->host, sizeof(src->host));
-	dest += sizeof(src->host);
-	memcpy(dest, &src->port, sizeof(src->port));
-	dest += sizeof(src->port);
-	return dest;
-}
-
-//need to move it in more suitable file
-/// @brief
-/// @details
-static void *unserialize_nodeid(struct node_id *dest, void *src)
-{
-	memcpy(dest->host, src, sizeof(dest->host));
-	src += sizeof(dest->host);
-	memcpy(&dest->port, src, sizeof(dest->port));
-	src += sizeof(dest->port);
-	return src;
-}
-
 //copy dest to src return the next adress
 /// @brief
 /// @details
 static void *serialize_request(void *dest, const struct request *src)
 {
-	memcpy(dest, &src->mode, sizeof(src->mode));
-	dest += sizeof(src->mode);
-	return serialize_nodeid(dest, &src->who);
+	char *cursor = (char *)dest;
+	memcpy(cursor, &src->mode, sizeof(src->mode));
+	cursor += sizeof(src->mode);
+	return serialize_nodeid(cursor, &src->who);
 }
 
 //copy dest to src return the next adress
@@ -105,7 +126,8 @@ static void *serialize_request(void *dest, const struct request *src)
 /// @details
 static void *unserialize_request(struct request *dest, void *src)
 {
-	memcpy(&dest->mode, src, sizeof(dest->mode));
-	src += sizeof(dest->mode);
-	return unserialize_nodeid(&dest->who, src);
+	char *cursor = (char *)src;
+	memcpy(&dest->mode, cursor, sizeof(dest->mode));
+	cursor += sizeof(dest->mode);
+	return unserialize_nodeid(&dest->who, cursor);
 }

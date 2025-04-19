@@ -1,14 +1,16 @@
 #include <gtest/gtest.h>
-#include <stdatomic.h>
-#include <unistd.h>
-#include <semaphore.h>
-#include <sys/mman.h>
 
 extern "C" {
 #include "library.h"
 #include "utils/utils.h"
 #include "core/core.h"
 #include "core/data_transfer.h"
+#include "utils/logger.h"
+
+#include <stdatomic.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <sys/mman.h>
 }
 
 TEST(sync, mmm)
@@ -43,6 +45,7 @@ TEST(sync, mmm)
 		// printf("%b, wait 1\n", parent);
 
 		// printf("%b __________ BEFORE LOCK WRITE\n", parent);
+		log_info("lock write");
 		lock_write(dsm, sizeof(int));
 		// printf("%b __________ AFTER LOCK WRITE\n", parent);
 		sem_post(sem_a);

@@ -12,7 +12,7 @@ struct node_id {
 	char host[INET6_ADDRSTRLEN]; ///< Hostname or IP address of the node.
 	int port; ///< Port number of the node.
 };
-#define NODEID_SIZE sizeof(char) * INET6_ADDRSTRLEN + sizeof(int)
+#define NODEID_SIZE (sizeof(char) * INET6_ADDRSTRLEN) + sizeof(int)
 
 /// @brief Structure representing a message.
 /// @details Contains the type of the message and the identifier of the sender.

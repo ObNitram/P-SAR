@@ -19,7 +19,7 @@ enum lock_status {
 /// @param page_id
 /// @param lock_type
 /// @return 0 on success, -1 if we dont have the lock
-int ask_lock(const size_t page_id, const enum lock_type lock_type);
+void ask_lock(const size_t page_id, const enum lock_type lock_type);
 
 /// @brief
 /// @details

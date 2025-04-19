@@ -1,4 +1,7 @@
+#define DISABLE_LOG
+
 #include "utils.h"
+#include "logger.h"
 
 pthread_mutex_t umtx = PTHREAD_MUTEX_INITIALIZER;
 void *dsm = NULL;
@@ -72,6 +75,8 @@ void broadcast_wait_message(struct message *msg, size_t size,
 	set_counter(counter, nb_nodees);
 	struct node_list *node = &node_list;
 	list_for_each_entry_continue(node, &node_list.nlist, nlist) {
+		log_info("send message %p to %s:%d", msg, node->node.host,
+			 node->node.port);
 		send_message(&node->node, msg, size);
 	}
 	wait_on_counter(counter);
