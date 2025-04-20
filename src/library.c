@@ -222,7 +222,14 @@ void *leave_DSM(void)
 		clean_CS();
 		clean_sigsegv();
 		void *res = malloc(PAGE_SIZE * nb_pages);
+		if (!res) {
+			perror("unable to allocate memory for res");
+			goto exit;
+		}
+		for (unsigned int i = 0; i < nb_pages; i++)
+			memory_unlock_read((size_t)i);
 		memcpy(res, dsm, PAGE_SIZE * nb_pages);
+exit:
 		free_DSM();
 		return res;
 	}
