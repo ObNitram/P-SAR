@@ -74,7 +74,7 @@ static void PAGE_handler(struct message *message)
 /// @param recv_type The type of the message : expected to be either RECV_PAGE or RECV_PAGE_LEAVE
 /// @return A pointer to the message
 static struct message *build_PAGE_message(size_t page_id, size_t *sz,
-					  struct node_id *owner,
+					  const struct node_id *owner,
 					  enum message_type recv_type)
 {
 	// contains the page_id, the owner of that page and the page itself
@@ -122,8 +122,8 @@ static void transfer_page(struct node_id *requester, size_t page_id)
 /// @param node The node that asked for the page
 /// @param sz It will contain the size of the message
 /// @return A pointer to the message
-static struct message *build_rqst_message(size_t page_id, struct node_id *node,
-					  size_t *sz)
+static struct message *
+build_rqst_message(size_t page_id, const struct node_id *node, size_t *sz)
 {
 	// contains a page_id and a node
 	*sz = sizeof(struct message) + sizeof(size_t) + sizeof(struct node_id);
@@ -233,8 +233,9 @@ static void DT_LEAVE_handler(struct message *message)
 /// @param new_owner The new owner of the page
 /// @param sz It will contain the size of the message
 /// @return A pointer to the message
-static struct message *
-build_DT_LEAVE_message(size_t page_id, struct node_id *new_owner, size_t *sz)
+static struct message *build_DT_LEAVE_message(size_t page_id,
+					      const struct node_id *new_owner,
+					      size_t *sz)
 {
 	struct message *msg = build_rqst_message(page_id, new_owner, sz);
 	msg->message_type = DT_LEAVE;

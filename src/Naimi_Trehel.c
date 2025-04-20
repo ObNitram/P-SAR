@@ -65,7 +65,7 @@ static void GET_CS_handler(struct message *message)
 	pthread_mutex_unlock(&nt_mtx);
 }
 
-void request_CS()
+void request_CS(void)
 {
 	pthread_mutex_lock(&nt_mtx);
 	requesting = true;
@@ -84,7 +84,7 @@ void request_CS()
 	pthread_mutex_unlock(&nt_mtx);
 }
 
-void release_CS()
+void release_CS(void)
 {
 	pthread_mutex_lock(&nt_mtx);
 	users--;
@@ -139,9 +139,6 @@ static void NEW_ROOT_CS_handler(struct message *message)
 {
 	pthread_mutex_lock(&nt_mtx);
 	init_internal_data(&EMPTY_NODE, true, requesting);
-	if (requesting) {
-		pthread_cond_signal(&nt_cond);
-	}
 	struct message msg = { .message_type = RESET_CS };
 	struct node_list *n1 = &node_list;
 	list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
@@ -151,6 +148,9 @@ static void NEW_ROOT_CS_handler(struct message *message)
 	}
 	msg.message_type = LEAVE_CS;
 	send_message(&message->sender, &msg, sizeof(struct message));
+	if (requesting) {
+		pthread_cond_signal(&nt_cond);
+	}
 	pthread_mutex_unlock(&nt_mtx);
 }
 
@@ -176,40 +176,25 @@ void init_CS(const struct node_id *father_init, bool token_init,
 	addHandler(LEAVE_CS, NULL, LEAVE_CS_handler);
 }
 
-void clear_CS()
+void clean_CS(void)
 {
 	pthread_mutex_destroy(&nt_mtx);
 	pthread_cond_destroy(&nt_cond);
 }
 
-int leave_CS()
+void leave_CS(const struct node_id new_root)
 {
 	pthread_mutex_lock(&nt_mtx);
-	if (!token) {
-		pthread_mutex_unlock(&nt_mtx);
-		return -1;
-	}
 	leaving = true;
-	struct node_id *new_root = NULL;
+	pthread_mutex_unlock(&nt_mtx);
 	size_t sz;
-	if (!node_equal(&next, &EMPTY_NODE))
-		new_root = &next;
-	else
-		new_root = &list_next_entry(&node_list, nlist)->node;
-
-	// there is no ther person in the network
-	if (new_root->port == -1)
-		goto exit;
 
 	// we just have to inform him, that he is the new root
 	struct message msg = { .message_type = NEW_ROOT_CS };
-	send_message(new_root, &msg, sizeof(struct message));
+	send_message(&new_root, &msg, sizeof(struct message));
 
 	while (leaving)
 		pthread_cond_wait(&nt_cond, &nt_mtx);
 
-exit:
-	pthread_mutex_unlock(&nt_mtx);
-	clear_CS();
-	return 0;
+	clean_CS();
 }

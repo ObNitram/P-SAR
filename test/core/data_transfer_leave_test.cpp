@@ -78,7 +78,7 @@ TEST(data_transfer_leave, join_then_try_sync_a_page)
 
 	log_info("init all joined\n");
 
-	leave_data_transfer(&nodes[1]);
+	leave_data_transfer(nodes[1]);
 
 	stop_server();
 	clean_core();

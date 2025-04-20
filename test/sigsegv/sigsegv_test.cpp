@@ -35,7 +35,7 @@ TEST(sigsegv, init_to_destroy_owner)
 	size_t size = PAGE_SIZE;
 	size_t nb_page = 1;
 	void *dsm = init(size, nb_page, true);
-	exit_sigsegv();
+	clean_sigsegv();
 	munmap(dsm, size);
 }
 TEST(sigsegv, init_to_destroy_slave)
@@ -44,6 +44,6 @@ TEST(sigsegv, init_to_destroy_slave)
 	size_t nb_page = 1;
 	void *dsm = init(size, nb_page, false);
 	init_sigsegv(dsm, nb_page, false);
-	exit_sigsegv();
+	clean_sigsegv();
 	munmap(dsm, size);
 }

@@ -81,7 +81,7 @@ void clean_data_transfer(void)
 	free(page_state);
 }
 
-void leave_data_transfer(struct node_id *new_owner)
+void leave_data_transfer(const struct node_id new_owner)
 {
 	// we wont treat any request further here
 	addHandler(RECV_PAGE, NULL, NULL);
@@ -96,18 +96,18 @@ void leave_data_transfer(struct node_id *new_owner)
 			log_info("Inform new Owner\n");
 			size_t ms_sz;
 			struct message *msg = build_PAGE_message(
-				i, &ms_sz, new_owner, RECV_PAGE_LEAVE);
-			send_wait_message_nolock(new_owner, msg, ms_sz, cv);
+				i, &ms_sz, &new_owner, RECV_PAGE_LEAVE);
+			send_wait_message_nolock(&new_owner, msg, ms_sz, cv);
 			free_message(msg);
 			log_info("ACK recved from new Owner\n");
 
 			// broadcast to each other node, the info about the new owner
 			pthread_mutex_lock(&umtx);
-			msg = build_DT_LEAVE_message(i, new_owner, &ms_sz);
+			msg = build_DT_LEAVE_message(i, &new_owner, &ms_sz);
 			struct node_list *n = &node_list;
 			list_for_each_entry_continue(n, &node_list.nlist,
 						     nlist) {
-				if (node_equal(&n->node, new_owner))
+				if (node_equal(&n->node, &new_owner))
 					continue;
 				cv->predicate = false;
 				send_wait_message_nolock(&n->node, msg, ms_sz,

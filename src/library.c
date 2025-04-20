@@ -212,6 +212,31 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 	return dsm;
 }
 
+void *leave_DSM(void)
+{
+	request_CS();
+	if (list_empty(&node_list.nlist)) {
+		stop_server();
+		clean_core();
+		clean_data_transfer();
+		clean_CS();
+		clean_sigsegv();
+		void *res = malloc(PAGE_SIZE * nb_pages);
+		memcpy(res, dsm, PAGE_SIZE * nb_pages);
+		free_DSM();
+		return res;
+	}
+	struct node_id succ = list_prev_entry(&node_list, nlist)->node;
+	leave_core(succ);
+	leave_data_transfer(succ);
+	leave_CS(succ);
+	stop_server();
+	clean_sigsegv();
+	free_DSM();
+	free_nodes(&node_list);
+	return NULL;
+}
+
 void lock_read(void *adr, size_t s)
 {
 	exclude_others(adr, s, READ, ask_lock);

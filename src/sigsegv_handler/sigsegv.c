@@ -163,7 +163,7 @@ void *init_sigsegv(void *dsm, size_t nb_page, bool is_owner)
 	return dsm;
 }
 
-void exit_sigsegv()
+void clean_sigsegv()
 {
 	int exit_status = EXIT_SUCCESS;
 
