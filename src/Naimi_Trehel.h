@@ -2,13 +2,13 @@
 
 #include "network/message.h"
 
-extern void request_CS();
+extern void request_CS(void);
 
-extern void release_CS();
+extern void release_CS(void);
 
-void init_CS(const struct node_id *father_init, bool token_init,
-	     bool requesting_init);
+extern void init_CS(const struct node_id *father_init, bool token_init,
+		    bool requesting_init);
 
-extern void clear_CS();
+extern void clean_CS(void);
 
-extern int leave_CS();
+extern void leave_CS(const struct node_id new_root);

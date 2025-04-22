@@ -28,6 +28,13 @@ void free_DSM(void);
 void *join_DSM(const char *host, int connect_port, const char *interface,
 	       int server_port);
 
+/// @brief Leaves the distributed shared memory system, by transmetting it's actual state to a successor.
+///
+/// This function frees each mallocated memory and stop the server.
+/// @return NULL if we are not the last node in the DSM, otherwise returns the adresse of the final state of the DSM.
+/// @note The return value must be freed.
+void *leave_DSM(void);
+
 /// @brief Requests a read lock for the specified memory region.
 ///
 /// This function requests a read lock for the segment of memory of size `s` starting at address `adr`.

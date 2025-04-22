@@ -3,7 +3,7 @@
 #include <stddef.h>
 
 void *init_sigsegv(void *dsm, size_t nb_page, bool is_owner);
-void exit_sigsegv();
+void clean_sigsegv(void);
 
 void memory_lock(size_t index);
 void memory_unlock_read(size_t index);

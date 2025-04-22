@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #define MAX_EVENT 10
 
@@ -47,6 +48,10 @@ static int find_connection(const struct node_id *node)
 		if (node_equal(&connection_buffer[i].node, node)) {
 			int sock = connection_buffer[i].sockfd;
 			pthread_mutex_unlock(&con_buff_lock);
+			log_info("find sock %d for %s:%d",
+				 connection_buffer[i].sockfd,
+				 connection_buffer[i].node.host,
+				 connection_buffer[i].node.port);
 			return sock;
 		}
 	}
@@ -57,7 +62,7 @@ static int find_connection(const struct node_id *node)
 /// @brief Add the tuple node/key to the connection_buffer cache.
 /// @param node The node to add as a key.
 /// @param socket The socket associated to the node.
-/// @return 0 on success or -1 entry already exist.
+/// @return socket on success or the socket already in the buffer
 static int add_connection(const struct node_id node, const int socket)
 {
 	pthread_mutex_lock(&con_buff_lock);
@@ -66,6 +71,8 @@ static int add_connection(const struct node_id node, const int socket)
 		if (node_equal(&connection_buffer[i].node, &node)) {
 			int sock = connection_buffer[i].sockfd;
 			pthread_mutex_unlock(&con_buff_lock);
+			log_info("node %s:%d have sock %d", node.host,
+				 node.port, sock);
 			return sock;
 		}
 	}
@@ -80,17 +87,19 @@ static int add_connection(const struct node_id node, const int socket)
 			malloc(sizeof(struct connection_entry) * buffer_size);
 	}
 
+	log_info("add %d for %s:%d to buffer", socket, node.host, node.port);
+
 	connection_buffer[buffer_size - 1].node = node;
 	connection_buffer[buffer_size - 1].sockfd = socket;
 	pthread_mutex_unlock(&con_buff_lock);
 
-	return 0;
+	return socket;
 }
 
 /// @brief Replace the socket associated to the given node in the connection_buffer cache.
 /// @param node The node to search.
 /// @param socket The new socket to replace.
-/// @return 0 on success or -1 if socket is valid.
+/// @return socket en success or the valid socket in buffer
 static int replace_socket(const struct node_id *node, const int socket)
 {
 	pthread_mutex_lock(&con_buff_lock);
@@ -102,12 +111,13 @@ static int replace_socket(const struct node_id *node, const int socket)
 				connection_buffer[i].sockfd = socket;
 				break;
 			}
+			int sock = connection_buffer[i].sockfd;
 			pthread_mutex_unlock(&con_buff_lock);
-			return -1;
+			return sock;
 		}
 	}
 	pthread_mutex_unlock(&con_buff_lock);
-	return 0;
+	return socket;
 }
 
 static void *exec_handler(void *arg)
@@ -293,6 +303,7 @@ void *server_thread(void *arg)
 				struct message *message = malloc(message_size);
 				if (Recv_all(events[i].data.fd, (char *)message,
 					     message_size) == -1) {
+					log_error("sock %d", events[i].data.fd);
 					perror("read data");
 					close(events[i].data.fd);
 					continue;
@@ -414,16 +425,20 @@ static int send_message_internal(int sockfd, struct message *message,
 {
 	if (send_all(sockfd, (char *)&message_size, sizeof(message_size)) ==
 	    -1) {
+		log_error("bad sock %d", sockfd);
 		perror("send datasize");
 		close(sockfd);
 		return -1;
 	}
 
 	if (send_all(sockfd, (char *)message, message_size) == -1) {
+		log_error("data failed");
 		perror("send data");
 		close(sockfd);
 		return -1;
 	}
+
+	log_info("send success");
 
 	return 0;
 }
@@ -450,7 +465,11 @@ void send_message(const struct node_id *dest, struct message *message,
 	if (sock != -1) {
 		if (send_message_internal(sock, message, message_size) != -1) {
 			return;
+		} else {
+			log_error("failed first time");
 		}
+	} else {
+		log_warning("sock == -1 for %s:%d", dest->host, dest->port);
 	}
 
 	// new connection if not found or if fail to send
@@ -460,6 +479,8 @@ void send_message(const struct node_id *dest, struct message *message,
 		perror("socket");
 		return;
 	}
+
+	log_info("open sock %d at addr %p", sockfd, &sockfd);
 
 	struct sockaddr_in serv_addr;
 	serv_addr.sin_family = AF_INET;
@@ -488,16 +509,24 @@ void send_message(const struct node_id *dest, struct message *message,
 	}
 
 	if (sock == -1) {
-		if (add_connection(*dest, sockfd) != 0) {
+		log_info("add sock %d at addr %p", sockfd, &sockfd);
+		sock = add_connection(*dest, sockfd);
+		if (sock != sockfd) {
 			close(sockfd);
 		}
 	} else {
-		if (replace_socket(dest, sockfd) == -1) {
+		log_info("replace sock %d at addr %p", sockfd, &sockfd);
+		sock = replace_socket(dest, sockfd);
+		if (sock != sockfd) {
 			close(sockfd);
 		}
 	}
 
-	send_message_internal(sockfd, message, message_size);
+	log_info("retry send message on sock %d", sock);
+
+	if (send_message_internal(sock, message, message_size) == -1) {
+		log_error("send message failed");
+	}
 }
 
 void send_wait_message_nolock(const struct node_id *dest,

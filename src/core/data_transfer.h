@@ -24,6 +24,11 @@ extern void init_data_transfer(unsigned int nb_pages, struct node_id *owners);
 /// @details This function frees the allocated memory for the data transfer module.
 extern void clean_data_transfer();
 
+/// @brief Leaves the data transfer module and cleans it
+/// @param new_owner The new owner of the page that we own
+/// @details We assume that this function is only called once.
+extern void leave_data_transfer(const struct node_id new_owner);
+
 /// @brief Gets the owners of the pages
 /// @param dst A pointer to the destination where the page owners will be stored
 /// @details This function copies the current page owners into the provided destination.
