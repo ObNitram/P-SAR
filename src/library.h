@@ -32,7 +32,7 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 ///
 /// This function frees each mallocated memory and stop the server.
 /// @return NULL if we are not the last node in the DSM, otherwise returns the adresse of the final state of the DSM.
-/// @note The function will block until the last node leaves the DSM and the return value must be freed.
+/// @note The return value must be freed.
 void *leave_DSM(void);
 
 /// @brief Requests a read lock for the specified memory region.
