@@ -12,7 +12,7 @@ struct node_id {
 	char host[INET6_ADDRSTRLEN]; ///< Hostname or IP address of the node.
 	int port; ///< Port number of the node.
 };
-#define NODEID_SIZE (sizeof(char) * INET6_ADDRSTRLEN) + sizeof(int)
+#define NODEID_SIZE ((sizeof(char) * INET6_ADDRSTRLEN) + sizeof(int))
 
 /// @brief Structure representing a message.
 /// @details Contains the type of the message and the identifier of the sender.
@@ -20,7 +20,7 @@ struct message {
 	size_t message_type; ///< The type of the message.
 	struct node_id sender; ///< The sender of the message.
 };
-#define MESSAGE_SIZE sizeof(size_t) + NODEID_SIZE
+#define MESSAGE_SIZE (sizeof(size_t) + NODEID_SIZE)
 
 /// @brief Frees a dynamically allocated message. This function is deprecated and will be remove
 /// @details This function releases the memory allocated for a message, helping to prevent memory leaks.
