@@ -156,6 +156,7 @@ static void exclude_others(void *adr, size_t s, enum lock_type lock_type,
 void *Init_DSM(size_t size, const char *interface, int port)
 {
 	// memory init
+	cv.predicate = false;
 	nb_pages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
 	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
 		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -163,6 +164,7 @@ void *Init_DSM(size_t size, const char *interface, int port)
 		perror("map allocation failed");
 		return NULL;
 	}
+
 	init_CS(&EMPTY_NODE, 1, 0);
 	init_nodes(&node_list);
 	start_server(port, interface);
@@ -177,7 +179,7 @@ void *Init_DSM(size_t size, const char *interface, int port)
 	return dsm;
 }
 
-void free_DSM(void)
+static void free_DSM(void)
 {
 	munmap(dsm, nb_pages * PAGE_SIZE);
 	cv.predicate = 0;
@@ -186,6 +188,7 @@ void free_DSM(void)
 void *join_DSM(const char *host, int connect_port, const char *interface,
 	       int server_port)
 {
+	cv.predicate = false;
 	init_nodes(&node_list);
 	start_server(server_port, interface);
 	set_all_handlers();

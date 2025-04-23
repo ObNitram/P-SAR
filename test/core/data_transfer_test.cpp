@@ -77,7 +77,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
 		clean_data_transfer();
 		clean_core();
 		free_nodes(&node_list);
-		free_DSM();
+		munmap(dsm, nb_pages * PAGE_SIZE);
 		wait(NULL);
 		nb_pages = 0;
 		nb_nodees = 0;
@@ -122,7 +122,7 @@ TEST(data_transfer, join_then_try_sync_a_page)
 		clean_data_transfer();
 		clean_core();
 		free_nodes(&node_list);
-		free_DSM();
+		munmap(dsm, nb_pages * PAGE_SIZE);
 
 		exit(0);
 	}

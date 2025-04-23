@@ -11,6 +11,7 @@ extern "C" {
 #include "utils/utils.h"
 #include <semaphore.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 }
 
 static const int init_port = 2450;
@@ -64,7 +65,7 @@ TEST(data_transfer_leave, join_then_try_sync_a_page)
 			clean_data_transfer();
 			clean_core();
 			free_nodes(&node_list);
-			free_DSM();
+			munmap(dsm, nb_pages * PAGE_SIZE);
 			exit(0);
 		}
 	}
@@ -82,7 +83,7 @@ TEST(data_transfer_leave, join_then_try_sync_a_page)
 	stop_server();
 	clean_core();
 	free_nodes(&node_list);
-	free_DSM();
+	munmap(dsm, nb_pages * PAGE_SIZE);
 
 	for (int i = 0; i < 3; i++)
 		wait(NULL);
@@ -150,7 +151,7 @@ TEST(data_transfer_leave, leave_without_owning_a_page)
 				clean_data_transfer();
 			clean_core();
 			free_nodes(&node_list);
-			free_DSM();
+			munmap(dsm, nb_pages * PAGE_SIZE);
 			exit(0);
 		}
 	}
@@ -171,7 +172,7 @@ TEST(data_transfer_leave, leave_without_owning_a_page)
 	stop_server();
 	clean_core();
 	free_nodes(&node_list);
-	free_DSM();
+	munmap(dsm, nb_pages * PAGE_SIZE);
 
 	if (sem_close(sem1) == -1 || sem_close(sem2) == -1) {
 		perror("sem_close");

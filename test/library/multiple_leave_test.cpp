@@ -12,6 +12,7 @@ extern "C" {
 #include "utils/utils.h"
 #include "core/core.h"
 #include "core/data_transfer.h"
+#include <sys/mman.h>
 }
 
 static const char *addr_init = "127.0.0.1";
