@@ -79,6 +79,8 @@ void clean_data_transfer(void)
 		pthread_mutex_destroy(&(page_cv + i)->lock);
 		pthread_cond_destroy(&(page_cv + i)->cond);
 	}
+	pthread_mutex_destroy(&dt_cv.lock);
+	pthread_cond_destroy(&dt_cv.cond);
 	free(page_owners);
 	free(page_cv);
 	free(page_state);
@@ -117,12 +119,14 @@ void leave_data_transfer(const struct node_id new_owner)
 	msg = build_DT_LEAVE_message(index_pages, nb_owned_pages, &new_owner,
 				     &ms_sz);
 	struct node_list *n = &node_list;
+	log_info("Informing %u nodes that i leave\n", nb_nodees - 1);
 	list_for_each_entry_continue(n, &node_list.nlist, nlist) {
 		if (node_equal(&n->node, &new_owner))
 			continue;
 		dt_cv.predicate = false;
 		send_wait_message(&n->node, msg, ms_sz, &dt_cv);
 	}
+	log_info("ACKED all, leave done !\n");
 	free_message(msg);
 	pthread_mutex_unlock(&umtx);
 

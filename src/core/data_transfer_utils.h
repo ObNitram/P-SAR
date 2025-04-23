@@ -215,6 +215,7 @@ static void ACK_RECV_PAGE_handler(struct message *message)
 /// @param message Contains the new owner of a given page with it's id
 static void DT_LEAVE_handler(struct message *message)
 {
+	log_info("Someone is leaving, gud by...\n");
 	const struct node_id *new_owner = (struct node_id *)(message + 1);
 	const size_t *nb_ids = (size_t *)(new_owner + 1);
 	const size_t *start_tab = nb_ids + 1;
@@ -243,6 +244,7 @@ static void DT_LEAVE_handler(struct message *message)
 	// we ACK the change
 	struct message msg = { .message_type = ACK_RECV_PAGE };
 	send_message(&message->sender, &msg, sizeof(struct message));
+	log_info("ACK leaving sent !\n");
 
 	// we remove the old owner from the node_list
 	pthread_mutex_lock(&umtx);
@@ -288,7 +290,7 @@ static void RECV_PAGE_LEAVE_handler(struct message *message)
 	size_t page_msg_sz =
 		sizeof(size_t) + sizeof(struct node_id) + PAGE_SIZE;
 	void *addr = (void *)(nb_ids + 1);
-	log_info("someone leaving, i'm new owner for page %zu\n", *page_id);
+	log_info("someone leaving, i'm new owner of %zu pages\n", *nb_ids);
 
 	for (size_t i = 0; i < *nb_ids; i++) {
 		const size_t *page_id = (size_t *)(addr);
@@ -303,7 +305,7 @@ static void RECV_PAGE_LEAVE_handler(struct message *message)
 	// we ACK the changes to the leaver
 	struct message msg = { .message_type = ACK_RECV_PAGE };
 	send_message(&message->sender, &msg, sizeof(struct message));
-	log_info("ACK sent from new Owner of page %zu\n", *page_id);
+	log_info("ACK sent from new Owner of %zu pages\n", *nb_ids);
 
 	// lock node_list
 	free(remove_node(&node_list, &message->sender));
