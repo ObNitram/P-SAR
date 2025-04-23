@@ -21,8 +21,8 @@ jobs:
       - name: build shared library
         run: make
 
-      - name: run Benchmark
-        run: time timeout 1m ./build/main-psar 1010 5
-
       - name: run gtest
         run: timeout 2m ./build/test-psar
+
+      - name: run Benchmark
+        run: time timeout 1m ./build/main-psar 1010 5
