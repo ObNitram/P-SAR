@@ -1,4 +1,4 @@
-#define DISABLE_LOG
+//#define DISABLE_LOG
 
 #include "network.h"
 #include "../library.h"

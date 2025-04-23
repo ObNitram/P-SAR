@@ -8,8 +8,7 @@
 #include <stdlib.h>
 
 
-
-const char* localhost = "127.0.0.1";
+const char *localhost = "127.0.0.1";
 
 
 // Function to swap two integers
@@ -83,15 +82,22 @@ void worker_node(const size_t node_id, const int server_port,
                  const size_t tab_size)
 {
 	log_info("Worker node %ld", node_id);
+	const size_t raw_tab_size = tab_size * sizeof(int);
 
 	int *tab = join_DSM(localhost, server_port,
 	                    localhost, server_port + node_id);
 
-	const size_t raw_tab_size = tab_size * sizeof(int);
 	const size_t raw_segment_size = raw_tab_size / number_of_node;
-
+	ensure_warning(raw_tab_size % number_of_node == 0,
+	               "The size of the array is not divisible by the number of nodes");
 	const size_t segment_size = tab_size / number_of_node;
-	int *node_tab = tab + (node_id - 1) * segment_size;
+	ensure_warning(tab_size % number_of_node == 0,
+	               "The size of the array is not divisible by the number of nodes");
+
+	const size_t tab_offset = (node_id - 1) * segment_size;
+	int *node_tab = tab + tab_offset;
+	log_info("(%ld) Sorting segment %lu to %lu, total size is %lu",
+	         node_id, tab_offset, tab_offset + segment_size, tab_size);
 
 	lock_write(node_tab, raw_segment_size);
 	sort(node_tab, segment_size);
@@ -102,34 +108,34 @@ void worker_node(const size_t node_id, const int server_port,
 
 void main_node(int server_port, size_t tab_size)
 {
-	const size_t row_size = tab_size * sizeof(int);
+	const size_t row_tab_size = tab_size * sizeof(int);
 
 	// Allocate and initialize the DSM
 	log_info("Initializing DSM");
-	int *tab = Init_DSM(row_size, localhost, server_port);
+	int *tab = Init_DSM(row_tab_size, localhost, server_port);
 	log_info("DSM initialized");
 
 	log_info("Filling DSM with random values");
-	lock_write(tab, row_size);
+	lock_write(tab, row_tab_size);
 	for (int i = 0; i < tab_size; i++) {
 		tab[i] = rand();
 	}
-	unlock_write(tab, row_size);
+	unlock_write(tab, row_tab_size);
 
 	log_info("Printing initial values");
-	lock_read(tab, row_size);
+	lock_read(tab, row_tab_size);
 	for (int i = 0; i < 24; i++) {
 		printf("%d\n", tab[i]);
 	}
 	printf("\n");
-	unlock_read(tab, row_size);
+	unlock_read(tab, row_tab_size);
 
 	while (true) {
 		sleep(1);
 
-		lock_read(tab, row_size);
+		lock_read(tab, row_tab_size);
 		bool is_sorted_ = is_sorted(tab, tab_size);
-		unlock_read(tab, row_size);
+		unlock_read(tab, row_tab_size);
 
 		if (is_sorted_) {
 			break;
@@ -172,7 +178,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	const size_t tab_size = 1000 * number_of_node;
+	const size_t tab_size = number_of_node * 1000;
 
 	int sun = fork();
 	if (sun == -1) {
@@ -188,7 +194,7 @@ int main(int argc, char **argv)
 
 	log_info("Starting worker nodes...");
 
-	for (size_t node_id = 1; node_id < number_of_node; node_id++) {
+	for (size_t node_id = 1; node_id <= number_of_node; node_id++) {
 		sun = fork();
 		if (sun == -1) {
 			perror("fork");
