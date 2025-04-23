@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "library.h"
 #include "utils/logger.h"
 
@@ -18,6 +20,7 @@ static void swap(int *a, int *b)
 	*a = *b;
 	*b = temp;
 }
+
 
 // Partition function for Quick Sort
 static int partition(int *tab, int low, int high)
@@ -78,35 +81,62 @@ bool is_sorted(const int *tab, const size_t tab_size)
 
 
 void worker_node(const size_t node_id, const int server_port,
-                 const size_t number_of_node,
+                 const size_t worker_count,
                  const size_t tab_size)
 {
-	log_info("Worker node %ld", node_id);
+	log_info("(%ld) Worker node Start", node_id);
 	const size_t raw_tab_size = tab_size * sizeof(int);
 
 	int *tab = join_DSM(localhost, server_port,
 	                    localhost, server_port + node_id);
 
-	const size_t raw_segment_size = raw_tab_size / number_of_node;
-	ensure_warning(raw_tab_size % number_of_node == 0,
-	               "The size of the array is not divisible by the number of nodes");
-	const size_t segment_size = tab_size / number_of_node;
-	ensure_warning(tab_size % number_of_node == 0,
-	               "The size of the array is not divisible by the number of nodes");
+	const size_t raw_segment_size = raw_tab_size / worker_count;
+	ensure_error(raw_tab_size % worker_count == 0,
+	             "The size of the array is not divisible by the number of nodes");
+	const size_t segment_size = tab_size / worker_count;
+	ensure_error(tab_size % worker_count == 0,
+	             "The size of the array is not divisible by the number of nodes");
 
 	const size_t tab_offset = (node_id - 1) * segment_size;
 	int *node_tab = tab + tab_offset;
-	log_info("(%ld) Sorting segment %lu to %lu, total size is %lu",
+	log_info("(%ld) Will sort %lu to %lu, total size is %lu",
 	         node_id, tab_offset, tab_offset + segment_size, tab_size);
 
+	int *end_tab = node_tab + tab_size;
+
+	if (ensure_error(tab<= node_tab && node_tab <= end_tab,
+	                 "The segment start is not in the array")) {
+		assert(true);
+	}
+	int *end_segment = node_tab + segment_size;
+	if (ensure_error(node_tab <= end_segment && end_segment <= end_tab,
+	                 "The segment end is not in the array")) {
+		assert(true);
+	}
+
 	lock_write(node_tab, raw_segment_size);
+	log_info("(%ld) Sorting segment %lu to %lu, total size is %lu)",
+	         node_id, tab_offset, tab_offset + segment_size, tab_size);
 	sort(node_tab, segment_size);
+	log_info("(%ld) Sorted segment %lu to %lu, total size is %lu)",
+	         node_id, tab_offset, tab_offset + segment_size, tab_size);
 	unlock_write(node_tab, raw_segment_size);
 
+	sleep(10);
+	log_info("(%ld) Worker leaving...", node_id);
 	leave_DSM();
+	log_info("(%ld) Worker node End", node_id);
 }
 
-void main_node(int server_port, size_t tab_size)
+void print_tab(const int *tab, const size_t tab_size)
+{
+	for (size_t i = 0; i < tab_size; i++) {
+		printf("%d\n", tab[i]);
+	}
+	printf("\n");
+}
+
+void main_node(int server_port, const size_t worker_count, size_t tab_size)
 {
 	const size_t row_tab_size = tab_size * sizeof(int);
 
@@ -132,19 +162,35 @@ void main_node(int server_port, size_t tab_size)
 
 	while (true) {
 		sleep(1);
+		log_info("(0) Waiting for all nodes to finish sorting");
+
+		bool tab_is_sorted = true;
 
 		lock_read(tab, row_tab_size);
-		bool is_sorted_ = is_sorted(tab, tab_size);
+
+		for (int i = 0; i < worker_count; ++i) {
+			size_t segment_size = tab_size / worker_count;
+			int *node_tab = tab + i * segment_size;
+			bool segment_is_sorted = is_sorted(
+				node_tab, segment_size);
+			if (!segment_is_sorted) {
+				tab_is_sorted = false;
+				log_info("(0) Segment %d is not sorted", i);
+			}
+		}
+
 		unlock_read(tab, row_tab_size);
 
-		if (is_sorted_) {
+		if (tab_is_sorted) {
 			break;
 		}
+		log_info("(0) Not all nodes finished sorting. Waiting...");
 	}
 
 	log_info("The array is sorted");
 
 	leave_DSM();
+	log_info("(0) Main node End");
 }
 
 
@@ -186,7 +232,7 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 	if (sun == 0) {
-		main_node(port, tab_size);
+		main_node(port, number_of_node, tab_size);
 		return 0;
 	}
 
@@ -206,7 +252,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	for (size_t node_id = 0; node_id < number_of_node; node_id++) {
+	for (size_t node_id = 0; node_id <= number_of_node; node_id++) {
 		wait(NULL);
 	}
 }
