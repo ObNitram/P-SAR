@@ -97,7 +97,7 @@ void worker_node(const size_t node_id, const int server_port,
 	sort(node_tab, segment_size);
 	unlock_write(node_tab, raw_segment_size);
 
-	free_DSM();
+	leave_DSM();
 }
 
 void main_node(int server_port, size_t tab_size)
@@ -138,7 +138,7 @@ void main_node(int server_port, size_t tab_size)
 
 	log_info("The array is sorted");
 
-	free_DSM();
+	leave_DSM();
 }
 
 
