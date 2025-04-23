@@ -7,6 +7,11 @@
 #include <stddef.h>  // for size_t
 #include <stdlib.h>
 
+
+
+const char* localhost = "127.0.0.1";
+
+
 // Function to swap two integers
 static void swap(int *a, int *b)
 {
@@ -79,8 +84,8 @@ void worker_node(const size_t node_id, const int server_port,
 {
 	log_info("Worker node %ld", node_id);
 
-	int *tab = join_DSM("localhost", server_port,
-	                    "localhost", server_port + node_id);
+	int *tab = join_DSM(localhost, server_port,
+	                    localhost, server_port + node_id);
 
 	const size_t raw_tab_size = tab_size * sizeof(int);
 	const size_t raw_segment_size = raw_tab_size / number_of_node;
@@ -101,7 +106,7 @@ void main_node(int server_port, size_t tab_size)
 
 	// Allocate and initialize the DSM
 	log_info("Initializing DSM");
-	int *tab = Init_DSM(row_size, "localhost", server_port);
+	int *tab = Init_DSM(row_size, localhost, server_port);
 	log_info("DSM initialized");
 
 	log_info("Filling DSM with random values");
