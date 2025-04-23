@@ -14,6 +14,8 @@
 #include "../utils/utils.h"
 #include "../core/core.h"
 #include "../core/data_transfer.h"
+#define DISABLE_LOG
+#include "../utils/logger.h"
 
 // perm: PROT_NONE, PROT_EXEC, PROT_READ, PROT_WRITE
 static void memory_protect(size_t index, int perm)
@@ -77,6 +79,11 @@ static void send_invalidation(size_t page_index)
 	free_message(msg);
 }
 
+static bool is_valid_address(void *addr)
+{
+	return addr >= dsm && addr < dsm + PAGE_SIZE * nb_pages;
+}
+
 static void sigsev_handler(int sig, siginfo_t *info, void *ucontext)
 {
 	// Thanks to `info` we can know at which memory adress the SIGSEGV happened
@@ -84,7 +91,6 @@ static void sigsev_handler(int sig, siginfo_t *info, void *ucontext)
 	// But not the size of the data to read/write.
 	// Which shouldn't be a problem I think?
 	// In part due to alignment
-	void *page_addr = info->si_addr - ((size_t)info->si_addr % PAGE_SIZE);
 	int err = ((ucontext_t *)ucontext)->uc_mcontext.gregs[REG_ERR];
 	bool curr_reading = false;
 	bool curr_writing = false;
@@ -96,6 +102,16 @@ static void sigsev_handler(int sig, siginfo_t *info, void *ucontext)
 	// } else if (err & 16) {
 	//     printf("EXEC \n");
 	// }
+
+	if (!is_valid_address(info->si_addr)) {
+		log_error(
+			"SIGSEGV triggered on invalid adress %p, watch your program\n");
+		char *reading = (curr_reading) ? "true" : "false";
+		char *writing = (curr_writing) ? "true" : "false";
+		printf("Node %s:%d accessed adresse %p with access read = %s and write = %s\n",
+		       me.host, me.port, info->si_addr, reading, writing);
+		exit(0);
+	}
 
 	size_t page_index = get_page_index(info->si_addr);
 

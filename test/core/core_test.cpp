@@ -37,11 +37,10 @@ TEST(core, try_lock_unlock_write)
 
 	if (pid != 0) {
 		start_server(token_owner.port, token_owner.host);
+		init_core(NB_PAGE, &token_owner);
 
 		sem_post(sem1);
 		sem_wait(sem2);
-
-		init_core(NB_PAGE, &token_owner);
 
 		log_info("ask WRITE lock");
 		ask_lock(0, WRITE);
@@ -63,11 +62,10 @@ TEST(core, try_lock_unlock_write)
 
 	} else {
 		start_server(7845, "127.0.0.1");
+		init_core(NB_PAGE, &token_owner);
 
 		sem_post(sem2);
 		sem_wait(sem1);
-
-		init_core(NB_PAGE, &token_owner);
 
 		log_info("ask WRITE lock");
 		ask_lock(0, WRITE);
@@ -121,11 +119,10 @@ TEST(core, try_lock_unlock_read)
 
 	if (pid != 0) {
 		start_server(token_owner.port, token_owner.host);
+		init_core(NB_PAGE, &token_owner);
 
 		sem_post(sem1);
 		sem_wait(sem2);
-
-		init_core(NB_PAGE, &token_owner);
 
 		log_info("ask READ lock");
 		ask_lock(0, READ);
@@ -147,11 +144,10 @@ TEST(core, try_lock_unlock_read)
 
 	} else {
 		start_server(7845, "127.0.0.1");
+		init_core(NB_PAGE, &token_owner);
 
 		sem_post(sem2);
 		sem_wait(sem1);
-
-		init_core(NB_PAGE, &token_owner);
 
 		log_info("ask READ lock");
 		ask_lock(0, READ);
@@ -205,11 +201,10 @@ TEST(core, try_lock_unlock_read_write)
 
 	if (pid != 0) {
 		start_server(token_owner.port, token_owner.host);
+		init_core(NB_PAGE, &token_owner);
 
 		sem_post(sem1);
 		sem_wait(sem2);
-
-		init_core(NB_PAGE, &token_owner);
 
 		log_info("ask WRITE lock");
 		ask_lock(0, WRITE);
@@ -231,11 +226,10 @@ TEST(core, try_lock_unlock_read_write)
 
 	} else {
 		start_server(7845, "127.0.0.1");
+		init_core(NB_PAGE, &token_owner);
 
 		sem_post(sem2);
 		sem_wait(sem1);
-
-		init_core(NB_PAGE, &token_owner);
 
 		log_info("ask READ lock");
 		ask_lock(0, READ);
