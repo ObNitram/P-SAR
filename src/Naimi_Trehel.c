@@ -106,7 +106,6 @@ static void init_internal_data(const struct node_id *father_init,
 	requesting = requesting_init;
 	leaving = false;
 	acked = false;
-	users = 0;
 	node_copy(&father, father_init);
 	node_copy(&next, &EMPTY_NODE);
 }
@@ -128,11 +127,9 @@ static void RESET_CS_handler(struct message *message)
 	send_message(&message->sender, &msg, sizeof(struct message));
 	// request_CS() is a blocking function must be called at the end
 	if (requesting) {
-		pthread_mutex_unlock(&nt_mtx);
-		request_CS();
-	} else {
-		pthread_mutex_unlock(&nt_mtx);
+		send_request_to_father(&me);
 	}
+	pthread_mutex_unlock(&nt_mtx);
 }
 
 static void NEW_ROOT_CS_handler(struct message *message)
@@ -166,6 +163,7 @@ void init_CS(const struct node_id *father_init, bool token_init,
 	     bool requesting_init)
 {
 	init_internal_data(father_init, token_init, requesting_init);
+	users = 0;
 	pthread_mutex_init(&nt_mtx, NULL);
 	pthread_cond_init(&nt_cond, NULL);
 	addHandler(REQUEST_CS, NULL, REQUEST_CS_handler);
@@ -191,10 +189,15 @@ void leave_CS(const struct node_id new_root)
 
 	// we just have to inform him, that he is the new root
 	struct message msg = { .message_type = NEW_ROOT_CS };
-	send_message(&new_root, &msg, sizeof(struct message));
+	if (node_equal(&next, &EMPTY_NODE))
+		send_message(&new_root, &msg, sizeof(struct message));
+	else
+		send_message(&next, &msg, sizeof(struct message));
 
+	pthread_mutex_lock(&nt_mtx);
 	while (leaving)
 		pthread_cond_wait(&nt_cond, &nt_mtx);
+	pthread_mutex_unlock(&nt_mtx);
 
 	clean_CS();
 }
