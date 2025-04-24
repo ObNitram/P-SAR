@@ -70,7 +70,7 @@ TEST(sync, mmm)
 		clean_data_transfer();
 		clean_core();
 		free_nodes(&node_list);
-		free_DSM();
+		munmap(dsm, nb_pages * PAGE_SIZE);
 	} else {
 		// printf("%b, start %i\n", parent, getpid());
 		// wait until INIT is setup
@@ -103,7 +103,7 @@ TEST(sync, mmm)
 		stop_server();
 		clean_data_transfer();
 		clean_core();
-		free_DSM();
+		munmap(dsm, nb_pages * PAGE_SIZE);
 	}
 	munmap(sem_a, 2 * sizeof(sem_t));
 	nb_pages = 0;

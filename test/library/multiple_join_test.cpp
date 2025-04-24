@@ -9,6 +9,7 @@ extern "C" {
 #include "utils/utils.h"
 #include "core/core.h"
 #include "core/data_transfer.h"
+#include <sys/mman.h>
 }
 
 static const char *addr_init = "127.0.0.1";
@@ -34,7 +35,7 @@ static void wait_all(void)
 static void clear_DSM(void)
 {
 	stop_server();
-	free_DSM();
+	munmap(dsm, nb_pages * PAGE_SIZE);
 	clean_data_transfer();
 	clean_core();
 	free_nodes(&node_list);

@@ -78,7 +78,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 		clean_data_transfer();
 		clean_core();
 		free_nodes(&node_list);
-		free_DSM();
+		munmap(dsm, nb_pages * PAGE_SIZE);
 		wait(NULL);
 		nb_pages = 0;
 		nb_nodees = 0;
@@ -102,7 +102,7 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 		clean_data_transfer();
 		clean_core();
 		free_nodes(&node_list);
-		free_DSM();
+		munmap(dsm, nb_pages * PAGE_SIZE);
 
 		exit(0);
 	}
@@ -135,6 +135,6 @@ TEST(addr_to_page, get_page_index)
 	index = get_page_index((char *)dsm + 4090);
 	ASSERT_EQ(index, 0);
 
-	free_DSM();
+	munmap(dsm, nb_pages * PAGE_SIZE);
 	nb_pages = 0;
 }
