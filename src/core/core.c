@@ -461,12 +461,12 @@ static void handle_SEND_STATE(struct message *message)
 {
 	log_info("receive STATE");
 	//receive state
-	void *cursor = message + sizeof(struct message);
+	void *cursor = message + 1;
 
 	size_t number_pages = *(size_t *)cursor;
 	cursor += sizeof(number_pages);
 
-	for (int i = 0; i < number_pages; i++) {
+	for (size_t i = 0; i < number_pages; i++) {
 		//unserialize page_id
 		size_t page_id = *(size_t *)cursor;
 		cursor += sizeof(page_id);
@@ -474,7 +474,7 @@ static void handle_SEND_STATE(struct message *message)
 		struct core_info *working_page = core_info + page_id;
 		pthread_mutex_lock(&working_page->cond.lock);
 
-		cursor = unserialize_requests(cursor, &working_page->request);
+		cursor = unserialize_requests(working_page, cursor);
 
 		pthread_mutex_unlock(&working_page->cond.lock);
 	}
@@ -551,8 +551,6 @@ int leave_core(const struct node_id delegate)
 		}
 	}
 
-	log_info("have %zu token", number_token);
-
 	// add the number of page_id and the number of request for each page
 	message_data_size += number_token * (sizeof(size_t) + sizeof(size_t));
 
@@ -570,7 +568,7 @@ int leave_core(const struct node_id delegate)
 	size_t message_size = sizeof(struct message) + message_data_size;
 	struct message *state_message = (struct message *)malloc(message_size);
 	state_message->message_type = SEND_STATE;
-	void *cursor = state_message + sizeof(struct message);
+	void *cursor = state_message + 1;
 
 	//copy number_pages
 	memcpy(cursor, &number_token, sizeof(number_token));
