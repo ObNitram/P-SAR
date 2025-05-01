@@ -31,7 +31,7 @@ static bool server_is_running = false;
 static struct connection_entry {
 	struct node_id node;
 	int sockfd;
-} * connection_buffer;
+} *connection_buffer;
 pthread_mutex_t con_buff_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static size_t buffer_size;
