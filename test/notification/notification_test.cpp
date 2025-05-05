@@ -1,11 +1,10 @@
-#include <cstdio>
 #include <gtest/gtest.h>
 
 extern "C" {
 #include "comm/comm.h"
 #include "utils/logger.h"
 #include "notification/notification.h"
-#include "network/utils/cond_var.h"
+#include "utils/cond_var.h"
 }
 
 static void dummy(int fd)
