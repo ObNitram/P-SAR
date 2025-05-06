@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cond_var.h"
 #include "message.h"
 
 /// @brief Starts the server on the specified port.

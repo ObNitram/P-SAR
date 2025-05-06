@@ -2,7 +2,7 @@
 
 #include "network.h"
 #include "../library.h"
-#include "network/cond_var.h"
+#include "utils/cond_var.h"
 #include "utils/logger.h"
 #include <utils/utils.h>
 

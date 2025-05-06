@@ -15,7 +15,7 @@
 #include "network/message.h"
 #include "network/network.h"
 #include "sigsegv_handler/sigsegv.h"
-#include "network/cond_var.h"
+#include "utils/cond_var.h"
 #include "counter_cond_var.h"
 #include "core_internal.h"
 

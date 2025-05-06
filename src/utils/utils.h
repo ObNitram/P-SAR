@@ -52,6 +52,7 @@ enum message_type {
 	LEAVE_CS,
 	NUMBER_OF_MSG_TYPE // keep this value to the end it indicate the number of message type in the app
 };
+extern char *mess_type_str[NUMBER_OF_MSG_TYPE];
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))

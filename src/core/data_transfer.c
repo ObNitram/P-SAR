@@ -5,10 +5,10 @@
 #include "data_transfer_utils.h"
 #include "../core/core.h"
 #include "../network/network.h"
-#include "../network/cond_var.h"
-#include "../sigsegv_handler/sigsegv.h"
+#include "../utils/cond_var.h"
 #include "../utils/utils.h"
-#define DISABLE_LOG
+#include "../memory/memory.h"
+// #define DISABLE_LOG
 #include "../utils/logger.h"
 
 struct node_id *page_owners;
@@ -19,6 +19,13 @@ void set_new_owner(size_t page_id, struct node_id *new_owner)
 	node_copy(page_owners + page_id, new_owner);
 	page_state[page_id] = (node_equal(new_owner, &me));
 	pthread_mutex_unlock(&(page_cv + page_id)->lock);
+}
+
+static void INVALIDATION_handler(struct message *message)
+{
+	size_t *page_id = (size_t *)(message + 1);
+	memory_lock(*page_id);
+	set_new_owner(*page_id, &message->sender);
 }
 
 void sync_page(size_t page_id)
@@ -53,6 +60,7 @@ void init_data_transfer(unsigned int nb_pages, struct node_id *owners)
 	addHandler(ACK_RECV_PAGE, NULL, ACK_RECV_PAGE_handler);
 	addHandler(RECV_PAGE_LEAVE, NULL, RECV_PAGE_LEAVE_handler);
 	addHandler(DT_LEAVE, NULL, DT_LEAVE_handler);
+	addHandler(INVALIDATION, NULL, INVALIDATION_handler);
 
 	page_owners = malloc(nb_pages * sizeof(struct node_id));
 	page_cv = malloc(nb_pages * sizeof(struct cond_var));
@@ -134,6 +142,20 @@ void leave_data_transfer(const struct node_id new_owner)
 		pthread_mutex_unlock(&(page_cv + index_pages[i])->lock);
 
 	clean_data_transfer();
+}
+
+void send_invalidation(size_t page_index)
+{
+	size_t msg_size = sizeof(struct message) + sizeof(size_t);
+	struct message *msg = malloc(msg_size);
+	msg->message_type = INVALIDATION;
+	size_t *page_id = (size_t *)(msg + 1);
+	*page_id = page_index;
+	pthread_mutex_lock(&umtx);
+	broadcast_message(msg, msg_size);
+	pthread_mutex_unlock(&umtx);
+	free_message(msg);
+	set_new_owner(page_index, &me);
 }
 
 void get_page_owners(void *dst)

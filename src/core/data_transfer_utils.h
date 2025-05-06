@@ -3,9 +3,9 @@
 #include <stdbool.h>
 
 #include "data_transfer.h"
+#include "../memory/memory.h"
 #include "../utils/utils.h"
-#include "../sigsegv_handler/sigsegv.h"
-#include "../network/cond_var.h"
+#include "../utils/cond_var.h"
 #define DISABLE_LOG
 #include "../utils/logger.h"
 
@@ -47,7 +47,10 @@ static void update_page(size_t page_id, const struct node_id *owner,
 	void *addr_op = dsm + page_id * PAGE_SIZE;
 	struct cond_var *cv = page_cv + page_id;
 
+	log_info("here on update page try lock\n");
 	pthread_mutex_lock(&cv->lock);
+	log_info("here on update page locked\n");
+
 	// if it's a page that we asked or
 	// the owner of that page that informs us about the new
 	// owner, we copy the new owner
@@ -56,11 +59,14 @@ static void update_page(size_t page_id, const struct node_id *owner,
 		node_copy(page_owners + page_id, owner);
 		memory_unlock_write(page_id);
 		memcpy(addr_op, addr_np, PAGE_SIZE);
+		log_info("try reset\n");
 		memory_lock_reset(page_id);
+		log_info("reseted\n");
 		// if someone is synching we wake him up
 		if (!cv->predicate)
 			signal_page_no_lock(page_id);
 	}
+	log_info("tadaaa\n");
 	pthread_mutex_unlock(&cv->lock);
 }
 

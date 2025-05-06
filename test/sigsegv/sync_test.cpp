@@ -6,6 +6,7 @@ extern "C" {
 #include "core/core.h"
 #include "core/data_transfer.h"
 #include "utils/logger.h"
+#include "comm/comm.h"
 
 #include <stdatomic.h>
 #include <unistd.h>
@@ -13,8 +14,12 @@ extern "C" {
 #include <sys/mman.h>
 }
 
-TEST(sync, mmm)
+TEST(synnc, mmm)
 {
+	init_logger(stdout);
+
+	log_info("Test started\n");
+
 	std::size_t size = 4096 * 2;
 	int init_port = 9000;
 	int join_port = 14001;
@@ -105,6 +110,8 @@ TEST(sync, mmm)
 		clean_core();
 		munmap(dsm, nb_pages * PAGE_SIZE);
 	}
+	destroy_all_chans();
+	exit_comm();
 	munmap(sem_a, 2 * sizeof(sem_t));
 	nb_pages = 0;
 	nb_nodees = 0;

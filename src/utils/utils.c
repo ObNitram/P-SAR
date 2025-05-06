@@ -12,6 +12,15 @@ struct node_list node_list;
 const struct node_id EMPTY_NODE = { .host = "", .port = -1 };
 struct node_id me;
 
+char *mess_type_str[NUMBER_OF_MSG_TYPE] = {
+	"ASK_LOCK",	   "GET_LOCK", "UNLOCK",	"JOIN_DSM",
+	"INFO_DSM",	   "NEW_NODE", "ASK_PAGE",	"RECV_PAGE",
+	"RECV_PAGE_LEAVE", "DT_LEAVE", "ACK_RECV_PAGE", "INVALIDATION",
+	"SEND_STATE",	   "DELEGATE", "DELEGATE_ACK",	"REQUEST_CS",
+	"GET_CS",	   "ACK_NODE", "NEW_ROOT_CS",	"RESET_CS",
+	"ACK_CS",	   "LEAVE_CS"
+};
+
 void init_nodes(struct node_list *list)
 {
 	INIT_LIST_HEAD(&list->nlist);

@@ -10,6 +10,7 @@ extern "C" {
 #include "utils/utils.h"
 #include "core/core.h"
 #include "core/data_transfer.h"
+#include "comm/comm.h"
 }
 
 static const char *addr_init = "127.0.0.1";
@@ -79,6 +80,8 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 		clean_core();
 		free_nodes(&node_list);
 		munmap(dsm, nb_pages * PAGE_SIZE);
+		destroy_all_chans();
+		exit_comm();
 		wait(NULL);
 		nb_pages = 0;
 		nb_nodees = 0;
@@ -103,7 +106,8 @@ TEST(join_init_dsm, try_to_init_then_join_the_dsm)
 		clean_core();
 		free_nodes(&node_list);
 		munmap(dsm, nb_pages * PAGE_SIZE);
-
+		destroy_all_chans();
+		exit_comm();
 		exit(0);
 	}
 }
