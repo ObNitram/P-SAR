@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "utils/logger.h"
+
 // define helper for cleanup
 #define defer(clean_func) __attribute__((cleanup(clean_func)))
 
@@ -15,7 +17,7 @@ static inline void cleanup_mutex_unlock(void *p)
 	if (m) {
 		int err = pthread_mutex_unlock(m);
 		if (err != 0) {
-			// log_error("Erreur unlock mutex: %s\n", strerror(err));
+			log_error("Erreur unlock mutex: %s\n", strerror(err));
 		}
 	}
 }

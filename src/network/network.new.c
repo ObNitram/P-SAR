@@ -1,14 +1,13 @@
-#include "network/utils/node_id.h"
+#include "utils/logger.h"
 #include <pthread.h>
 #include <stdatomic.h>
 #include <errno.h>
 
-#include "network/utils/cleanup.h"
 #include "utils/message_type.h"
 #include "submodule/protocol.h"
 #include "utils/list.h"
 
-#include "utils/logger.h"
+#include "network/utils/cleanup.h"
 
 /// @brief the status of the peer to peer network for this node
 enum network_status {
@@ -129,6 +128,7 @@ static void handle_JOIN(struct node_id *sender, void *payload)
 		log_error("fail to add node to joining list");
 		return;
 	}
+	context.number_joiners++;
 	list_add(&new_node->list, &context.joining_node);
 
 	//response if current node already in the network
@@ -249,8 +249,6 @@ static void handle_ACK_NEW_NODE(struct node_id *sender, void *payload)
 static void handle_JOIN_SUCCESS(struct node_id *sender, void *payload)
 {
 	struct node_id debug = get_info();
-	log_debug("node %s:%d receive JOIN SUCCESS from %s:%d", debug.host,
-		  debug.port, sender->host, sender->port);
 
 	handler_lock_context();
 	defer_unlock_mutex(&context.context_mutex);
@@ -271,9 +269,15 @@ static void handle_JOIN_SUCCESS(struct node_id *sender, void *payload)
 			list_del(&cur->list);
 			free(cur);
 			context.number_joiners--;
-			return;
+			pthread_cond_signal(&context.wait_on_value_cond);
+			break;
 		}
 	}
+
+	log_debug("node %s:%d receive JOIN SUCCESS from %s:%d remaining=%d",
+		  debug.host, debug.port, sender->host, sender->port,
+		  context.number_joiners);
+	return;
 }
 
 static void handle_LEAVE(struct node_id *sender, void *payload)
@@ -310,8 +314,6 @@ static void handle_LEAVE(struct node_id *sender, void *payload)
 static void handle_ACK_LEAVE(struct node_id *sender, void *payload)
 {
 	struct node_id debug = get_info();
-	log_debug("node %s:%d receive ACK LEAVE from %s:%d", debug.host,
-		  debug.port, sender->host, sender->port);
 
 	handler_lock_context();
 	defer_unlock_mutex(&context.context_mutex);
@@ -324,6 +326,11 @@ static void handle_ACK_LEAVE(struct node_id *sender, void *payload)
 	remove_from_network(sender);
 
 	context.number_leave_ack--;
+
+	log_debug("node %s:%d receive ACK LEAVE from %s:%d remaining=%d",
+		  debug.host, debug.port, sender->host, sender->port,
+		  context.number_leave_ack);
+
 	pthread_cond_signal(&context.wait_on_value_cond);
 }
 
@@ -394,7 +401,7 @@ int join_network(const struct node_id *me, const struct node_id *father)
 		}
 
 		//wait ack from network
-		while (context.state != JOINING_2 &&
+		while (context.state != JOINING_2 ||
 		       context.number_join_ack != 0) {
 			//if STOP cleanup ??
 			pthread_cond_wait(&context.wait_on_value_cond,
@@ -417,6 +424,17 @@ int join_network(const struct node_id *me, const struct node_id *father)
 
 	context.state = START;
 
+	//catch up joining request
+	struct node *cur, *tmp;
+	list_for_each_entry_safe(cur, tmp, &context.joining_node, list) {
+		if (response_to_joiner(&cur->node) != 0) {
+			log_error("fail to response to joiniing node %s:%d",
+				  cur->node.host, cur->node.port);
+			list_del(&cur->list);
+			free(cur);
+		}
+	}
+
 	return 0;
 }
 
@@ -434,11 +452,15 @@ int leave_network(void)
 
 	context.state = LEAVING_1;
 
+	log_debug("wait joiner remaining=%d", context.number_joiners);
+
 	//wait all joiner to join
 	while (context.number_joiners != 0) {
 		pthread_cond_wait(&context.wait_on_value_cond,
 				  &context.context_mutex);
 	}
+
+	log_debug("phase 2");
 
 	//set leaving handler
 	context.state = LEAVING_2;
@@ -456,6 +478,8 @@ int leave_network(void)
 					  &context.context_mutex);
 		}
 	}
+
+	log_debug("node receive leaving confirmation");
 
 	//unset handler
 	int err = 0;

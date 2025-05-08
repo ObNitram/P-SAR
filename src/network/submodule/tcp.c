@@ -542,8 +542,7 @@ int remove_from_network(const struct node_id *leaving_node)
 	struct connexion *cur, *tmp;
 	list_for_each_entry_safe(cur, tmp, &context.network, list) {
 		if (node_equal(&cur->info, leaving_node)) {
-			list_del(&cur->list);
-			destroy_connexion(cur);
+			cur->temporary = true;
 			return 0;
 		}
 	}
