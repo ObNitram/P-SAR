@@ -10,12 +10,12 @@ extern "C" {
 #include "network/network.new.h"
 }
 
-#define EXPECT_TRUE_OR_EXIT(cond)                                          \
-	do {                                                               \
-		if (!(cond)) {                                             \
+#define EXPECT_TRUE_OR_EXIT(cond)                                 \
+	do {                                                      \
+		if (!(cond)) {                                    \
 			log_error("Assertion failed: %s", #cond); \
-			_exit(1);                                          \
-		}                                                          \
+			_exit(1);                                 \
+		}                                                 \
 	} while (0)
 
 static const int init_port = 2450;
@@ -747,7 +747,11 @@ check_state:
 			log_info("joiner%d : checking network state", i);
 			EXPECT_TRUE_OR_EXIT(lookup_nodes(all_nodes, 6));
 
-			//add semwait
+			// inform creator that we have checked our state
+			log_info(
+				"joiner%d : informing creator that I checked my state",
+				i);
+			sem_post(sems[0]);
 
 			// wait from creator that we can leave
 			log_info(
@@ -786,6 +790,9 @@ check_state:
 	// check network state
 	log_info("creator : checking network state");
 	ASSERT_TRUE(lookup_nodes(all_nodes, 6));
+
+	// wait until every one checked his state
+	wait_on(sems[0], 5);
 
 	// inform every one that they can leave
 	log_info("creator : informing every one that they can leave");
