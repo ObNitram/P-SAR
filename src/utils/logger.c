@@ -1,11 +1,16 @@
 #include "logger.h"
 
-FILE *g_log_stream;
+FILE *g_log_stream = NULL;
 
 void log_message_internal(const char *level, const char *message,
 			  const char *file, const char *function,
 			  const int line)
 {
+	//default on standard output
+	if (g_log_stream == NULL) {
+		g_log_stream = stdout;
+	}
+
 	// Get the current time as a Unix timestamp (seconds since the epoch)
 	time_t now = time(NULL);
 

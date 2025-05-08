@@ -3,13 +3,12 @@
 
 #include "data_transfer.h"
 #include "data_transfer_utils.h"
-#include "../core/core.h"
-#include "../network/network.h"
-#include "../network/cond_var.h"
-#include "../sigsegv_handler/sigsegv.h"
-#include "../utils/utils.h"
+#include "network/network.h"
+#include "utils/cond_var.h"
+#include "sigsegv_handler/sigsegv.h"
+#include "utils/utils.h"
 #define DISABLE_LOG
-#include "../utils/logger.h"
+#include "utils/logger.h"
 
 struct node_id *page_owners;
 

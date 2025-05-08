@@ -3,7 +3,7 @@
 extern "C" {
 #include "library.h"
 #include "utils/utils.h"
-#include "core/core.h"
+#include "lock/lock.h"
 #include "core/data_transfer.h"
 #include "utils/logger.h"
 

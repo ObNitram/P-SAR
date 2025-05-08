@@ -5,7 +5,7 @@ extern "C" {
 #include <semaphore.h>
 #include <fcntl.h>
 #include "utils/utils.h"
-#include "core/core.h"
+#include "lock/lock.h"
 #include "utils/logger.h"
 #include "network/network.h"
 }
@@ -15,7 +15,7 @@ const struct node_id token_owner {
 	.host = "127.0.0.1", .port = 5641
 };
 
-TEST(core, try_lock_unlock_write)
+TEST(lock, try_lock_unlock_write)
 {
 	init_logger(stdout);
 
@@ -97,7 +97,7 @@ TEST(core, try_lock_unlock_write)
 	}
 }
 
-TEST(core, try_lock_unlock_read)
+TEST(lock, try_lock_unlock_read)
 {
 	init_logger(stdout);
 
@@ -179,7 +179,7 @@ TEST(core, try_lock_unlock_read)
 	}
 }
 
-TEST(core, try_lock_unlock_read_write)
+TEST(lock, try_lock_unlock_read_write)
 {
 	init_logger(stdout);
 
@@ -261,7 +261,7 @@ TEST(core, try_lock_unlock_read_write)
 	}
 }
 
-TEST(core, try_leave)
+TEST(lock, try_leave)
 {
 	init_logger(stdout);
 

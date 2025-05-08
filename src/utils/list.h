@@ -2,6 +2,8 @@
 #define _LINUX_LIST_H
 // NOLINTBEGIN
 
+#include <stddef.h>
+
 /*
  * These are non-NULL pointers that will result in page faults
  * under normal circumstances, used to verify that nobody uses

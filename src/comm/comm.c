@@ -65,7 +65,7 @@ static void remove_callback(struct callback *cb)
 	if (epoll_ctl(context.epoll, EPOLL_CTL_DEL, cb->fd, NULL) < 0) {
 		log_error("epoll_ctl DEL fd=%d: %s", cb->fd, strerror(errno));
 	}
-
+	log_debug("close fd=%d", cb->fd);
 	close(cb->fd);
 	free(cb);
 }
@@ -283,6 +283,8 @@ int delete_handler(int fd)
 {
 	pthread_mutex_lock(&context.context_lock);
 
+	log_debug("delete handler for fd=%d", fd);
+
 	if (!context.started) {
 		log_error("delete_handler called before init");
 		pthread_mutex_unlock(&context.context_lock);
@@ -298,6 +300,8 @@ int delete_handler(int fd)
 int delete_handlers(void (*cb)(int))
 {
 	pthread_mutex_lock(&context.context_lock);
+
+	log_debug("delete handlers");
 
 	if (!context.started) {
 		log_error("delete_handlers called before init");

@@ -28,6 +28,13 @@ extern struct node_id me;
 /// @brief Represents the type of message.
 /// @details This enum defines the available message types.
 enum message_type {
+	//network module
+	NETWORK_JOIN,
+	NETWORK_ACK_JOIN,
+	NETWORK_NEW_NODE,
+	NETWORK_ACK_NEW_NODE,
+	NETWORK_JOIN_SUCCESS,
+	//lock module
 	ASK_LOCK,
 	GET_LOCK,
 	UNLOCK,

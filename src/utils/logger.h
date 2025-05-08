@@ -4,6 +4,12 @@
 #include <time.h>
 #include <unistd.h>
 
+#define ERROR "\x1b[31mERROR\x1b[0m"
+
+#define WARNING "\x1b[33mWARNING\x1b[0m"
+#define INFO "\x1b[32mINFO\x1b[0m"
+#define DEBUG "\x1b[90mDEBUG\x1b[0m"
+
 /// @brief Global log stream variable.
 /// @details This variable defines the output stream for the logging messages.
 /// It can be set to any valid FILE pointer (e.g., stdout, stderr, or a file opened with fopen).
@@ -44,16 +50,6 @@ void log_message_internal(const char *level, const char *message,
 			  const char *file, const char *function,
 			  const int line);
 
-#if defined(DISABLE_LOG) || defined(NDEBUG)
-// Si IGNORE est défini, les macros ne font rien
-#define log_message(level, fmt, ...) ((void)0)
-#define log_debug(fmt, ...) ((void)0)
-#define log_info(fmt, ...) ((void)0)
-#define log_warning(fmt, ...) ((void)0)
-#define log_error(fmt, ...) ((void)0)
-
-#else
-
 /// @brief Variadic macro wrapper for log_message_internal to automatically include file, function, and line information.
 /// @param level The logging level.
 /// @param fmt The format string for the log message.
@@ -68,26 +64,55 @@ void log_message_internal(const char *level, const char *message,
 				     __FUNCTION__, __LINE__);                   \
 	} while (0)
 
-/// @brief Macro for logging debug messages.
-/// @param fmt The format string for the debug message.
-/// @param ... The variadic arguments to format the message.
-#define log_debug(fmt, ...) log_message("DEBUG", fmt, ##__VA_ARGS__)
-
-/// @brief Macro for logging info messages.
-/// @param fmt The format string for the info message.
-/// @param ... The variadic arguments to format the message.
-#define log_info(fmt, ...) log_message("INFO", fmt, ##__VA_ARGS__)
-
-/// @brief Macro for logging warning messages.
-/// @param fmt The format string for the warning message.
-/// @param ... The variadic arguments to format the message.
-#define log_warning(fmt, ...) log_message("WARNING", fmt, ##__VA_ARGS__)
+// filter log with macro ERROR_LOG WARNING_LOG INFO_LOG DISABLE_LOG
+#if !(defined(DISABLE_LOG) || defined (NDEBUG))
 
 /// @brief Macro for logging error messages.
 /// @param fmt The format string for the error message.
 /// @param ... The variadic arguments to format the message.
-#define log_error(fmt, ...) log_message("ERROR", fmt, ##__VA_ARGS__)
+#define log_error(fmt, ...) log_message(ERROR, fmt, ##__VA_ARGS__)
 
+#ifndef ERROR_LOG
+
+/// @brief Macro for logging warning messages.
+/// @param fmt The format string for the warning message.
+/// @param ... The variadic arguments to format the message.
+#define log_warning(fmt, ...) log_message(WARNING, fmt, ##__VA_ARGS__)
+
+#ifndef WARNING_LOG
+
+/// @brief Macro for logging info messages.
+/// @param fmt The format string for the info message.
+/// @param ... The variadic arguments to format the message.
+#define log_info(fmt, ...) log_message(INFO, fmt, ##__VA_ARGS__)
+
+#ifndef INFO_LOG
+
+/// @brief Macro for logging debug messages.
+/// @param fmt The format string for the debug message.
+/// @param ... The variadic arguments to format the message.
+#define log_debug(fmt, ...) log_message(DEBUG, fmt, ##__VA_ARGS__)
+
+#else
+#define log_debug(fmt, ...) ((void)0)
+#endif
+
+#else
+#define log_debug(fmt, ...) ((void)0)
+#define log_info(fmt, ...) ((void)0)
+#endif
+
+#else
+#define log_debug(fmt, ...) ((void)0)
+#define log_info(fmt, ...) ((void)0)
+#define log_warning(fmt, ...) ((void)0)
+#endif
+
+#else
+#define log_debug(fmt, ...) ((void)0)
+#define log_info(fmt, ...) ((void)0)
+#define log_warning(fmt, ...) ((void)0)
+#define log_error(fmt, ...) ((void)0)
 #endif
 
 /// @brief Variadic macro to ensure a condition is true.
@@ -113,7 +138,7 @@ void log_message_internal(const char *level, const char *message,
 /// @param fmt The format string for the log message.
 /// @param ... The variadic arguments to format the message.
 #define ensure_warning(condition, fmt, ...) \
-	ensure(condition, "WARNING", fmt, ##__VA_ARGS__)
+	ensure(condition, WARNING, fmt, ##__VA_ARGS__)
 
 /// @brief Macro variant to ensure a condition is true.
 /// @details If the condition is false, it logs the provided formatted message with an ERROR level.
@@ -121,4 +146,4 @@ void log_message_internal(const char *level, const char *message,
 /// @param fmt The format string for the log message.
 /// @param ... The variadic arguments to format the message.
 #define ensure_error(condition, fmt, ...) \
-	ensure(condition, "ERROR", fmt, ##__VA_ARGS__)
+	ensure(condition, ERROR, fmt, ##__VA_ARGS__)

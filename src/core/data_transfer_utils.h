@@ -3,11 +3,11 @@
 #include <stdbool.h>
 
 #include "data_transfer.h"
-#include "../utils/utils.h"
-#include "../sigsegv_handler/sigsegv.h"
-#include "../network/cond_var.h"
+#include "utils/utils.h"
+#include "sigsegv_handler/sigsegv.h"
+#include "utils/cond_var.h"
 #define DISABLE_LOG
-#include "../utils/logger.h"
+#include "utils/logger.h"
 
 /// @brief An array of cond_var for each page.
 /// @details The predicate is used to indicate if we are synching the page or not.

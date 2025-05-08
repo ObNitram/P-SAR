@@ -8,7 +8,7 @@ extern "C" {
 #include "utils/list.h"
 #include "utils/logger.h"
 #include "utils/utils.h"
-#include "core/core.h"
+#include "lock/lock.h"
 #include "core/data_transfer.h"
 }
 

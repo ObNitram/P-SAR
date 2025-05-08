@@ -8,16 +8,16 @@
 #include <stdatomic.h>
 #include <string.h>
 
-#include "core.h"
+#include "lock.h"
 #include "utils/utils.h"
 #include "utils/list.h"
 #include "utils/logger.h"
 #include "network/message.h"
 #include "network/network.h"
 #include "sigsegv_handler/sigsegv.h"
-#include "network/cond_var.h"
-#include "counter_cond_var.h"
-#include "core_internal.h"
+#include "utils/cond_var.h"
+#include "core/counter_cond_var.h"
+#include "lock_internal.h"
 
 /// @brief
 /// @details

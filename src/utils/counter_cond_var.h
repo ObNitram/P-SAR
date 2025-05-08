@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h>
 
 /// @brief Helping structure for waiting on a counter.
 /// @details Contains a mutex, a condition and a counter that need to be zero to unlock the condition.

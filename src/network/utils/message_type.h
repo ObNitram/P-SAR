@@ -1,0 +1,38 @@
+#pragma once
+
+/// @brief Represents the type of message.
+/// @details This enum defines the available message types.
+enum message_type {
+	//network module
+	NETWORK_JOIN,
+	NETWORK_ACK_JOIN,
+	NETWORK_NEW_NODE,
+	NETWORK_ACK_NEW_NODE,
+	NETWORK_JOIN_SUCCESS,
+	NETWORK_LEAVE,
+	NETWORK_ACK_LEAVE,
+	//lock module
+	ASK_LOCK,
+	GET_LOCK,
+	UNLOCK,
+	JOIN_DSM,
+	INFO_DSM,
+	NEW_NODE,
+	ASK_PAGE,
+	RECV_PAGE,
+	RECV_PAGE_LEAVE,
+	DT_LEAVE,
+	ACK_RECV_PAGE,
+	INVALIDATION,
+	SEND_STATE,
+	DELEGATE,
+	DELEGATE_ACK,
+	REQUEST_CS,
+	GET_CS,
+	ACK_NODE,
+	NEW_ROOT_CS,
+	RESET_CS,
+	ACK_CS,
+	LEAVE_CS,
+	NUMBER_OF_MSG_TYPE // keep this value to the end it indicate the number of message type in the app
+};

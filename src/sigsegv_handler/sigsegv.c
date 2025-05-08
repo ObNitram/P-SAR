@@ -12,7 +12,7 @@
 
 #include "sigsegv.h"
 #include "../utils/utils.h"
-#include "../core/core.h"
+#include "../lock/lock.h"
 #include "../core/data_transfer.h"
 #define DISABLE_LOG
 #include "../utils/logger.h"

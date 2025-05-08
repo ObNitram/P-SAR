@@ -10,7 +10,6 @@ extern "C" {
 #include "utils/list.h"
 #include "utils/logger.h"
 #include "utils/utils.h"
-#include "core/core.h"
 #include "core/data_transfer.h"
 #include <sys/mman.h>
 }

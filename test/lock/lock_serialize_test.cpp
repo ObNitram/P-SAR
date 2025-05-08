@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 
 extern "C" {
-#include <core/core_internal.h>
+#include <lock/lock_internal.h>
 #include "utils/logger.h"
 #include "utils/utils.h"
 }
 
-TEST(serialize_core, try_serialize_nodeid)
+TEST(serialize_lock, try_serialize_nodeid)
 {
 	init_logger(stdout);
 
@@ -23,7 +23,7 @@ TEST(serialize_core, try_serialize_nodeid)
 	ASSERT_EQ(node_equal(&src, &dest), true);
 }
 
-TEST(serialize_core, try_serialize_request)
+TEST(serialize_lock, try_serialize_request)
 {
 	init_logger(stdout);
 
@@ -50,7 +50,7 @@ TEST(serialize_core, try_serialize_request)
 	ASSERT_EQ(src.mode, dest.mode);
 }
 
-TEST(serialize_core, try_serialize_delegate)
+TEST(serialize_lock, try_serialize_delegate)
 {
 	init_logger(stdout);
 	

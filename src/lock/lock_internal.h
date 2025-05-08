@@ -2,7 +2,7 @@
 //This function doesnt depends on ANY global state and it for that it can be placed in a header...
 #pragma once
 
-#include "core.h"
+#include "lock.h"
 #include "core/counter_cond_var.h"
 #include "utils/list.h"
 #include <stddef.h>

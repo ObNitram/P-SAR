@@ -8,7 +8,7 @@ extern "C" {
 #include "network/message.h"
 #include "utils/list.h"
 #include "utils/logger.h"
-#include "core/core.h"
+#include "lock/lock.h"
 #include "core/data_transfer.h"
 #include "utils/utils.h"
 #include "sigsegv_handler/sigsegv.h"
