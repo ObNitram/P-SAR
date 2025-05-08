@@ -12,9 +12,12 @@ struct node_id {
 };
 #define NODEID_SIZE ((sizeof(char) * INET6_ADDRSTRLEN) + sizeof(int))
 
-#define EMPTY_NODE_INITIALIZER { .host = "", .port = -1 }
+#define EMPTY_NODE_INITIALIZER        \
+	{                             \
+		.host = 0, .port = -1 \
+	}
 
-static const struct node_id EMPTY_NODE = { .host = "", .port = -1 };
+static const struct node_id EMPTY_NODE = { .host = 0, .port = -1 };
 
 /// @brief Serialize a struct node_id
 /// @details This function srialize a given struct node_id into the given buffer. The buffer size must be greater than NODE_SIZE
@@ -51,7 +54,8 @@ static bool node_equal(const struct node_id *node1, const struct node_id *node2)
 	       (strcmp(node1->host, node2->host) == 0);
 }
 
-static void node_empty(struct node_id *node){
+static void node_empty(struct node_id *node)
+{
 	node->port = -1;
 	memset(node->host, 0, INET6_ADDRSTRLEN);
 }

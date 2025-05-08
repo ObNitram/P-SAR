@@ -1,4 +1,4 @@
-#include "utils/logger.h"
+#include "network/utils/node_id.h"
 #include <pthread.h>
 #include <stdatomic.h>
 #include <errno.h>
@@ -6,8 +6,11 @@
 #include "utils/message_type.h"
 #include "submodule/protocol.h"
 #include "utils/list.h"
-
+// #define ERROR_LOG
+#include "utils/logger.h"
 #include "network/utils/cleanup.h"
+#include <stddef.h>
+#include <unistd.h>
 
 /// @brief the status of the peer to peer network for this node
 enum network_status {
@@ -199,25 +202,56 @@ static void handle_NEW_NODE(struct node_id *sender, void *payload)
 		return;
 	}
 
-	//forward to all joiner node that a new node has join
-	size_t update_size = 0;
+	//create joiners list to send end with EMPTY_NODE
+	size_t payload_size =
+		sizeof(struct node_id) * (context.number_joiners + 1);
+	struct node_id *joiner_to_send = malloc(payload_size);
+	if (joiner_to_send == NULL) {
+		log_error("fail to alloc payload: %s", strerror(errno));
+		return;
+	}
+	int njoiner = 0;
 	struct node *cur;
 	list_for_each_entry(cur, &context.joining_node, list) {
-		if (send_message1(NETWORK_NEW_NODE, &cur->node, joining_node,
-				  sizeof(struct node_id)) != 0) {
-			log_error("fail to inform node %s:%d", cur->node.host,
-				  cur->node.port);
-		} else {
-			update_size++;
-		}
+		*(joiner_to_send + njoiner) = cur->node;
+		njoiner++;
 	}
+	*(joiner_to_send + njoiner) = EMPTY_NODE;
 
-	//ACK new node with current node info
-	if (send_message1(NETWORK_ACK_NEW_NODE, joining_node, &update_size,
-			  sizeof(update_size)) != 0) {
+	//send ACK_NEW_NODE with all joiners
+	if (send_message1(NETWORK_ACK_NEW_NODE, joining_node, joiner_to_send,
+			  payload_size) != 0) {
 		log_error("fail to contact joining node %s:%d",
 			  joining_node->host, joining_node->port);
 	}
+
+	//forward to all joiner node that a new node has join
+	list_for_each_entry(cur, &context.joining_node, list) {
+		if (send_message1(NETWORK_FORW_NEW_NODE, &cur->node,
+				  joining_node, sizeof(struct node_id)) != 0) {
+			log_error("fail to inform node %s:%d", cur->node.host,
+				  cur->node.port);
+		}
+	}
+
+	free(joiner_to_send);
+}
+
+static void handle_FORW_NEW_NODE(struct node_id *sender, void *payload)
+{
+	handler_lock_context();
+	defer_unlock_mutex(&context.context_mutex);
+
+	if (context.state != JOINING_1 && context.state != JOINING_2) {
+		log_warning("unexpected receive");
+	}
+
+	struct node_id *joining_node = (struct node_id *)payload;
+
+	//add new node to network
+	if (add_to_network(joining_node) != 0)
+		log_error("fail to add %s:%d to network", joining_node->host,
+			  joining_node->port);
 }
 
 static void handle_ACK_NEW_NODE(struct node_id *sender, void *payload)
@@ -234,9 +268,11 @@ static void handle_ACK_NEW_NODE(struct node_id *sender, void *payload)
 		return;
 	}
 
-	//get size of joining nodes under sender
-	unsigned int update_size = *(unsigned int *)payload;
-	context.number_join_ack += update_size;
+	struct node_id *nodes_list = payload;
+	while (node_isempty(nodes_list) == false) {
+		add_to_network(nodes_list);
+		nodes_list++;
+	}
 
 	//signal main thread
 	context.number_join_ack--;
@@ -380,6 +416,8 @@ int join_network(const struct node_id *me, const struct node_id *father)
 		err += add_net_handler(NETWORK_ACK_JOIN, handle_ACK_JOIN);
 		err += add_net_handler(NETWORK_ACK_NEW_NODE,
 				       handle_ACK_NEW_NODE);
+		err += add_net_handler(NETWORK_FORW_NEW_NODE,
+				       handle_FORW_NEW_NODE);
 		if (err != 0) {
 			log_error("fail to add joining handler");
 			return -1;
@@ -411,6 +449,7 @@ int join_network(const struct node_id *me, const struct node_id *father)
 		//unset joining handler
 		err += add_net_handler(NETWORK_ACK_JOIN, NULL);
 		err += add_net_handler(NETWORK_ACK_NEW_NODE, NULL);
+		err += add_net_handler(NETWORK_FORW_NEW_NODE, NULL);
 		if (err != 0) {
 			log_warning("fail to remove joining handler");
 		}

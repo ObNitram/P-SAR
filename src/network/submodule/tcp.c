@@ -7,12 +7,12 @@
 #include "comm/comm.h"
 #include "protocol.h"
 #include "utils/list.h"
-#include "network/utils/cleanup.h"
 #include "network/utils/network_header.h"
 #include "network/primitive_sock.h"
 
 #define ERROR_LOG
 #include "utils/logger.h"
+#include "network/utils/cleanup.h"
 
 #define MAX_PENDING_CONNEXION 5
 
@@ -208,7 +208,7 @@ static int create_client_socket(const struct node_id *target)
 	serv_addr.sin_port = htons(target->port);
 
 	if (inet_pton(AF_INET, target->host, &serv_addr.sin_addr) <= 0) {
-		log_error("fail to get server IP: %s", strerror(errno));
+		log_error("fail to get server IP \"%s\": %s", target->host, strerror(errno));
 		return -1;
 	}
 
