@@ -567,6 +567,12 @@ TEST(joinNetwork, childs_join_in_a_queue)
 			log_info("joiner%d : checking network state", i);
 			EXPECT_TRUE_OR_EXIT(lookup_nodes(all_nodes, 6));
 
+			// inform creator that we have checked our state
+			log_info(
+				"joiner%d : informing creator that I checked my state",
+				i);
+			sem_post(sems[0]);
+
 			// wait until we can leave
 			sem_wait(sems[i]);
 
@@ -601,6 +607,9 @@ TEST(joinNetwork, childs_join_in_a_queue)
 	// check network state
 	log_info("creator : checking network state");
 	ASSERT_TRUE(lookup_nodes(all_nodes, 6));
+
+	// wait untils every one checked his state
+	wait_on(sems[0], 5);
 
 	// inform every one that they can leave
 	log_info("creator : informing every one that they can leave");
