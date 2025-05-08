@@ -18,11 +18,100 @@
 #include "utils/logger.h"
 #include "library_messages.h"
 #include "Naimi_Trehel.h"
+#include "notification/notification.h"
+#include "memory/memory.h"
+#include "comm/comm.h"
 
 // 1 if we have joined the DSM else 0
 static struct cond_var cv = COND_VAR_INIT;
 static bool in_dsm = false;
 static bool acked = false;
+
+static void memory_lock_status_notification(int fd)
+{
+	size_t index = 0;
+	log_info("damn we've been called, we'll see\n");
+	read(fd, &index, sizeof(size_t));
+	log_info("read thy indexoo\n");
+	enum lock_status lock_status = get_lock_status(index);
+	int prot;
+	switch (lock_status) {
+	case NONE:
+		prot = PROT_NONE;
+		break;
+	case READING:
+	case WRITING:
+		prot = PROT_READ;
+		break;
+	}
+	log_info("write res\n");
+	write(fd, &prot, sizeof(int));
+	log_info("res written\n");
+}
+static int memory_fd1 = 0;
+
+static void sigsegv_sync_page_notification(int fd)
+{
+	size_t page_index = 0;
+	read(fd, &page_index, sizeof(size_t));
+	sync_page(page_index);
+	char eof = 0;
+	write(fd, &eof, sizeof(char));
+}
+static int sigsegv_fd1 = 0;
+
+static void sigsegv_lock_status_notification(int fd)
+{
+	int res = 0;
+	size_t page_index = 0;
+	bool curr_writing = 0;
+	read(fd, &page_index, sizeof(size_t));
+	read(fd, &curr_writing, sizeof(bool));
+	enum lock_status lock_status = get_lock_status(page_index);
+	// You're not allowed to do that you criminal, how dare you
+	if (lock_status == NONE)
+		res = -1;
+	// You don't have the right do to this my dude
+	if (lock_status == READING) {
+		if (curr_writing != false)
+			res = -1;
+	} else if (curr_writing && lock_status == WRITING) {
+		// Do not put the write permission too soon.
+		// We want to know if the user will write and only then send the invalidation
+		// And if we put the write permission when the first read happen, we'll just never know if a read happen
+		// It's a mystery~
+		res = PROT_WRITE;
+	}
+	write(fd, &res, sizeof(int));
+}
+static int sigsegv_fd2 = 0;
+
+static void sigsegv_send_invalidation_notification(int fd)
+{
+	size_t page_index = 0;
+	read(fd, &page_index, sizeof(size_t));
+	send_invalidation(page_index);
+}
+static int sigsegv_fd3 = 0;
+
+static void create_all_chans(bool is_owner)
+{
+	memory_fd1 = create_chan(memory_lock_status_notification);
+	init_memory(memory_fd1);
+	sigsegv_fd1 = create_chan(sigsegv_sync_page_notification);
+	sigsegv_fd2 = create_chan(sigsegv_lock_status_notification);
+	sigsegv_fd3 = create_chan(sigsegv_send_invalidation_notification);
+	init_sigsegv(dsm, nb_pages, is_owner,
+		     (int[]){ sigsegv_fd1, sigsegv_fd2, sigsegv_fd3 });
+}
+
+void destroy_all_chans(void)
+{
+	destroy_chan(memory_lock_status_notification, memory_fd1);
+	destroy_chan(sigsegv_sync_page_notification, sigsegv_fd1);
+	destroy_chan(sigsegv_lock_status_notification, sigsegv_fd2);
+	destroy_chan(sigsegv_send_invalidation_notification, sigsegv_fd3);
+}
 
 static void wait_in_dsm(void)
 {
@@ -119,7 +208,9 @@ static void INFO_DSM_handler(struct message *message)
 		n++;
 	}
 	pthread_mutex_unlock(&umtx);
-
+	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
+		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	create_all_chans(false);
 	init_data_transfer(nb_pages, n);
 
 	// we joined the DSM notify if there is some waiting requests
@@ -165,13 +256,12 @@ void *Init_DSM(size_t size, const char *interface, int port)
 		return NULL;
 	}
 
+	init_comm();
+	start_server(port, interface);
 	init_CS(&EMPTY_NODE, 1, 0);
 	init_nodes(&node_list);
-	start_server(port, interface);
 	set_all_handlers();
-
-	init_sigsegv(dsm, nb_pages, 1);
-
+	create_all_chans(true);
 	init_core(nb_pages, &me);
 	init_data_transfer(nb_pages, NULL);
 
@@ -190,6 +280,7 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 {
 	cv.predicate = false;
 	init_nodes(&node_list);
+	init_comm();
 	start_server(server_port, interface);
 	set_all_handlers();
 
@@ -202,8 +293,6 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 	send_wait_message(nd, &mess_joining, sizeof(struct message), &cv);
 	init_core(nb_pages, nd);
 
-	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
-		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (dsm == MAP_FAILED) {
 		perror("map allocation failed");
 		stop_server();
@@ -211,7 +300,7 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 		clean_core();
 		return NULL;
 	}
-	init_sigsegv(dsm, nb_pages, 0);
+	create_all_chans(false);
 	return dsm;
 }
 
@@ -224,6 +313,8 @@ void *leave_DSM(void)
 		clean_data_transfer();
 		clean_CS();
 		clean_sigsegv();
+		destroy_all_chans();
+		exit_comm();
 		void *res = malloc(PAGE_SIZE * nb_pages);
 		if (!res) {
 			perror("unable to allocate memory for res");
@@ -244,6 +335,8 @@ exit:
 	clean_sigsegv();
 	free_DSM();
 	free_nodes(&node_list);
+	destroy_all_chans();
+	exit_comm();
 	return NULL;
 }
 

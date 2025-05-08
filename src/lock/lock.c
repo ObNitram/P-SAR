@@ -14,9 +14,7 @@
 #include "utils/logger.h"
 #include "network/message.h"
 #include "network/network.h"
-#include "sigsegv_handler/sigsegv.h"
 #include "utils/cond_var.h"
-#include "core/counter_cond_var.h"
 #include "lock_internal.h"
 
 /// @brief
@@ -284,7 +282,7 @@ void unlock(const size_t page_id, const enum lock_type lock_type)
 static void handle_ASK_LOCK(struct message *message)
 {
 	log_info("receive ASK LOCK");
-	incr_counter(&handler_counter);
+	incr_counter(&handler_counter, false);
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info *working_page = core_info + request.page;
 
@@ -368,14 +366,14 @@ static void handle_ASK_LOCK(struct message *message)
 		}
 	}
 	pthread_mutex_unlock(&working_page->cond.lock);
-	decr_counter(&handler_counter);
+	decr_counter(&handler_counter, false);
 	log_info("ASK LOCK treat");
 }
 
 static void handle_GET_LOCK(struct message *message)
 {
 	log_info("receive GET LOCK");
-	incr_counter(&handler_counter);
+	incr_counter(&handler_counter, false);
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info *working_page = core_info + request.page;
 
@@ -400,13 +398,13 @@ static void handle_GET_LOCK(struct message *message)
 	working_page->cond.predicate = true;
 	pthread_cond_signal(&working_page->cond.cond);
 	pthread_mutex_unlock(&working_page->cond.lock);
-	decr_counter(&handler_counter);
+	decr_counter(&handler_counter, false);
 }
 
 static void handle_UNLOCK(struct message *message)
 {
 	log_info("receive UNLOCK");
-	incr_counter(&handler_counter);
+	incr_counter(&handler_counter, false);
 	struct slsm_message request = *((struct slsm_message *)message);
 	struct core_info *working_page = core_info + request.page;
 
@@ -418,7 +416,7 @@ static void handle_UNLOCK(struct message *message)
 		handle_local_UNLOCK(request.page, &request.sender);
 	}
 	pthread_mutex_unlock(&working_page->cond.lock);
-	decr_counter(&handler_counter);
+	decr_counter(&handler_counter, false);
 }
 
 static void handle_DELEGATE(struct message *buff)
@@ -453,7 +451,7 @@ static void handle_DELEGATE_ACK(struct message *message)
 {
 	log_info("receive ACK");
 	//decr counter
-	decr_counter(&DELEGATE_ACK_counter);
+	decr_counter(&DELEGATE_ACK_counter, false);
 }
 
 // <number_pages,<page_id,number_request,<request>*>*>
@@ -638,7 +636,7 @@ int leave_core(const struct node_id delegate)
 	log_info("all page has been unlock");
 
 	//wait handler
-	wait_on_counter(&handler_counter);
+	wait_on_counter(&handler_counter, false);
 
 	log_info("all handler are terminated");
 

@@ -12,6 +12,15 @@ struct node_list node_list;
 const struct node_id EMPTY_NODE = { .host = "", .port = -1 };
 struct node_id me;
 
+char *mess_type_str[NUMBER_OF_MSG_TYPE] = {
+	"ASK_LOCK",	   "GET_LOCK", "UNLOCK",	"JOIN_DSM",
+	"INFO_DSM",	   "NEW_NODE", "ASK_PAGE",	"RECV_PAGE",
+	"RECV_PAGE_LEAVE", "DT_LEAVE", "ACK_RECV_PAGE", "INVALIDATION",
+	"SEND_STATE",	   "DELEGATE", "DELEGATE_ACK",	"REQUEST_CS",
+	"GET_CS",	   "ACK_NODE", "NEW_ROOT_CS",	"RESET_CS",
+	"ACK_CS",	   "LEAVE_CS"
+};
+
 void init_nodes(struct node_list *list)
 {
 	INIT_LIST_HEAD(&list->nlist);
@@ -86,12 +95,12 @@ void broadcast_message(struct message *msg, size_t size)
 void broadcast_wait_message(struct message *msg, size_t size,
 			    struct counter_cond_var *counter)
 {
-	set_counter(counter, nb_nodees);
+	set_counter(counter, nb_nodees, false);
 	struct node_list *node = &node_list;
 	list_for_each_entry_continue(node, &node_list.nlist, nlist) {
 		log_info("send message %p to %s:%d", msg, node->node.host,
 			 node->node.port);
 		send_message(&node->node, msg, size);
 	}
-	wait_on_counter(counter);
+	wait_on_counter(counter, false);
 }

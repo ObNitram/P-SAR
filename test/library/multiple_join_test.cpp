@@ -10,6 +10,7 @@ extern "C" {
 #include "lock/lock.h"
 #include "core/data_transfer.h"
 #include <sys/mman.h>
+#include "comm/comm.h"
 }
 
 static const char *addr_init = "127.0.0.1";
@@ -39,6 +40,8 @@ static void clear_DSM(void)
 	clean_data_transfer();
 	clean_core();
 	free_nodes(&node_list);
+	destroy_all_chans();
+	exit_comm();
 	nb_pages = 0;
 	nb_nodees = 0;
 }

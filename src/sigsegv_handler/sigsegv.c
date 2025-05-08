@@ -12,72 +12,13 @@
 
 #include "sigsegv.h"
 #include "../utils/utils.h"
-#include "../lock/lock.h"
-#include "../core/data_transfer.h"
-#define DISABLE_LOG
+#include "../memory/memory.h"
+// #define DISABLE_LOG
 #include "../utils/logger.h"
 
-// perm: PROT_NONE, PROT_EXEC, PROT_READ, PROT_WRITE
-static void memory_protect(size_t index, int perm)
-{
-	int ret = mprotect(dsm + (index * PAGE_SIZE), PAGE_SIZE, perm);
-	if (ret == -1) {
-		int error = errno;
-		if (error == EACCES) {
-			fprintf(stderr, "memory_protect: EACCES\n");
-		} else if (error == EINVAL) {
-			fprintf(stderr, "memory_protect: EINVAL\n");
-		} else if (error == ENOMEM) {
-			fprintf(stderr, "memory_protect: ENOMEM\n");
-		}
-		perror("mprotect lock");
-		exit(EXIT_FAILURE);
-	}
-}
-
-void memory_lock(size_t index)
-{
-	memory_protect(index, PROT_NONE);
-}
-
-void memory_unlock_read(size_t index)
-{
-	memory_protect(index, PROT_READ);
-}
-
-void memory_unlock_write(size_t index)
-{
-	memory_protect(index, PROT_READ | PROT_WRITE);
-}
-
-void memory_lock_reset(size_t index)
-{
-	enum lock_status lock_status = get_lock_status(index);
-	int prot;
-	switch (lock_status) {
-	case NONE:
-		prot = PROT_NONE;
-		break;
-	case READING:
-	case WRITING:
-		prot = PROT_READ;
-		break;
-	}
-	memory_protect(index, prot);
-}
-
-static void send_invalidation(size_t page_index)
-{
-	size_t msg_size = sizeof(struct message) + sizeof(size_t);
-	struct message *msg = malloc(msg_size);
-	msg->message_type = INVALIDATION;
-	size_t *page_id = (size_t *)(msg + 1);
-	*page_id = page_index;
-	pthread_mutex_lock(&umtx);
-	broadcast_message(msg, msg_size);
-	pthread_mutex_unlock(&umtx);
-	free_message(msg);
-}
+static int sync_page_chan = 0;
+static int lock_status_chan = 0;
+static int send_invalidation_chan = 0;
 
 static bool is_valid_address(void *addr)
 {
@@ -86,11 +27,6 @@ static bool is_valid_address(void *addr)
 
 static void sigsev_handler(int sig, siginfo_t *info, void *ucontext)
 {
-	// Thanks to `info` we can know at which memory adress the SIGSEGV happened
-	// That is, at within which page it happen
-	// But not the size of the data to read/write.
-	// Which shouldn't be a problem I think?
-	// In part due to alignment
 	int err = ((ucontext_t *)ucontext)->uc_mcontext.gregs[REG_ERR];
 	bool curr_reading = false;
 	bool curr_writing = false;
@@ -99,9 +35,6 @@ static void sigsev_handler(int sig, siginfo_t *info, void *ucontext)
 	} else if (err & 0x4) {
 		curr_reading = true;
 	}
-	// } else if (err & 16) {
-	//     printf("EXEC \n");
-	// }
 
 	if (!is_valid_address(info->si_addr)) {
 		log_error(
@@ -117,44 +50,39 @@ static void sigsev_handler(int sig, siginfo_t *info, void *ucontext)
 
 	int prot = PROT_EXEC | PROT_READ;
 
-	enum lock_status lock_status = get_lock_status(page_index);
-	// printf("%i sigsev_handler: page_index: %lu, action: %s, lock_status: %s\n", getpid(), page_index, (curr_writing) ? "write" : "read", (lock_status == WRITING) ? "WRITING" : (lock_status == READING) ? "READING" : "NONE");
-	assert(lock_status !=
-	       NONE); // You're not allowed to do that you criminal, how dare you
-	if (lock_status == READING) {
-		assert(curr_writing ==
-		       false); // You don't have the right do to this my dude
-	} else if (curr_writing && lock_status == WRITING) {
-		// Do not put the write permission too soon.
-		// We want to know if the user will write and only then send the invalidation
-		// And if we put the write permission when the first read happen, we'll just never know if a read happen
-		// It's a mystery~
-		prot |= PROT_WRITE;
-	}
-	sync_page(page_index);
+	write(lock_status_chan, &page_index, sizeof(size_t));
+	write(lock_status_chan, &curr_writing, sizeof(bool));
+	int prot_write = 0;
+	read(lock_status_chan, &prot_write, sizeof(int));
+	assert(prot_write != -1);
+	prot |= prot_write;
+
+	char eof = 0;
+	log_info("write for sync page\n");
+	write(sync_page_chan, &page_index, sizeof(size_t));
+	log_info("read res\n");
+	read(sync_page_chan, &eof, sizeof(char));
+	//sync_page(page_index);
+
 	memory_protect(page_index, prot);
 
 	// If, for some reason (like another signal?) the handler exit without unlocking the memory
 	// No problem! The read/write will try again, which will trigger SIGSEGV again
 	// And the handler will be run once again... The circle of life. Beautiful.
 
-	if (curr_writing && lock_status == WRITING) {
-		set_new_owner(page_index, &me);
-		send_invalidation(page_index);
+	if (curr_writing && prot_write) {
+		write(send_invalidation_chan, &page_index, sizeof(size_t));
 	}
+	log_info("FINISHED HIM\n");
 }
 
-static void INVALIDATION_handler(struct message *message)
-{
-	size_t *page_id = (size_t *)(message + 1);
-	memory_lock(*page_id);
-	set_new_owner(*page_id, &message->sender);
-}
-
-void *init_sigsegv(void *dsm, size_t nb_page, bool is_owner)
+void *init_sigsegv(void *dsm, size_t nb_page, bool is_owner, int chans[3])
 {
 	assert(dsm != NULL);
 	assert(nb_page != 0);
+	sync_page_chan = chans[0];
+	lock_status_chan = chans[1];
+	send_invalidation_chan = chans[2];
 
 	struct sigaction sigact;
 	sigact.sa_sigaction = sigsev_handler;
@@ -175,7 +103,6 @@ void *init_sigsegv(void *dsm, size_t nb_page, bool is_owner)
 	for (size_t i = 0; i < nb_page; i++) {
 		memory_protect(i, prot);
 	}
-	addHandler(INVALIDATION, NULL, INVALIDATION_handler);
 	return dsm;
 }
 

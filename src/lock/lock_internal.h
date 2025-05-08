@@ -3,7 +3,7 @@
 #pragma once
 
 #include "lock.h"
-#include "core/counter_cond_var.h"
+#include "utils/counter_cond_var.h"
 #include "utils/list.h"
 #include <stddef.h>
 #include "network/message.h"
