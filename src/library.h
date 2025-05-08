@@ -33,6 +33,9 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 /// @note The return value must be freed.
 void *leave_DSM(void);
 
+/// @brief Same as the previous function, but it assures us that we are the last node to leave the DSM
+void *leave_last(void);
+
 /// @brief Requests a read lock for the specified memory region.
 ///
 /// This function requests a read lock for the segment of memory of size `s` starting at address `adr`.
