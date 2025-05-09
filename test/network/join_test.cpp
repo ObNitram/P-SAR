@@ -829,3 +829,141 @@ check_state:
 
 	close_all(sems, 6);
 }
+
+TEST(joinNetwork, childs_join_father_then_leave_big_version)
+{
+	init_logger(stdout);
+	const size_t nb_childs = 20;
+
+	log_info("Test : %zu childs joins father then exits", nb_childs);
+
+	struct node_id *nodes_list = (struct node_id *)malloc(
+		(nb_childs + 1) * sizeof(struct node_id));
+	for (int i = 0; i <= nb_childs; i++) {
+		nodes_list[i] = {
+			.host = "127.0.0.1",
+			.port = 6000 + i,
+		};
+		log_info("node[%d] %s:%d", i, nodes_list[i].host,
+			 nodes_list[i].port);
+	}
+	struct node_id founder = nodes_list[0];
+
+	sem_t *sem1, *sem2, *sem3;
+
+	sem1 = sem_open("/sem1", O_CREAT, 0644, 0);
+	sem2 = sem_open("/sem2", O_CREAT, 0644, 0);
+	sem3 = sem_open("/sem3", O_CREAT, 0644, 0);
+
+	if (sem1 == SEM_FAILED || sem2 == SEM_FAILED || sem3 == SEM_FAILED) {
+		log_error("sem_open: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	for (int i = 1; i <= nb_childs; i++) {
+		pid_t pid = fork();
+		if (pid == 0) {
+			init_comm();
+
+			// wait until father is set up
+			sem_wait(sem1);
+			log_info("joiner%d : joining the network", i);
+			EXPECT_TRUE_OR_EXIT(
+				join_network(&nodes_list[i], &founder) == 0);
+			log_info("joiner%d : joined the network", i);
+
+			log_info("joiner%d : informing creator that I joined",
+				 i);
+			sem_post(sem2);
+
+			// wait until every child has joined
+			sem_wait(sem3);
+			log_info("joiner%d : checking network state", i);
+			EXPECT_TRUE_OR_EXIT(
+				lookup_nodes(nodes_list, nb_childs + 1));
+
+			// inform creator that we checked the network state
+			log_info(
+				"joiner%d : informing creator that I checked the network state",
+				i);
+			sem_post(sem2);
+
+			// wait confirmation to leave
+			log_info(
+				"joiner%d : waiting for creator to inform me that I can leave",
+				i);
+			sem_wait(sem1);
+
+			// we leave
+			log_info("joiner%d : leaving the network", i);
+			EXPECT_TRUE_OR_EXIT(leave_network() == 0);
+			log_info("joiner%d : left the network", i);
+			EXPECT_TRUE_OR_EXIT(check_none());
+			log_info("joiner%d : informing creator that I left", i);
+			sem_post(sem2);
+			exit_comm();
+			exit(0);
+		}
+	}
+
+	init_comm();
+	// we create the network
+	log_info("creator : creating the network");
+	EXPECT_EQ(join_network(&founder, NULL), 0);
+
+	// inform child that he can join
+	log_info("creator : informing joiners that they can join");
+	post_on(sem1, nb_childs);
+
+	// wait until every child joined
+	log_info("creator : waiting for joiners to join");
+	wait_on(sem2, nb_childs);
+
+	// check network state
+	log_info("creator : checking network state");
+	ASSERT_TRUE(lookup_nodes(nodes_list, nb_childs + 1));
+
+	// inform joiners that every one joined
+	log_info("creator : informing joiners that everyone has joined");
+	post_on(sem3, nb_childs);
+
+	// wait that every joined checked his network state
+	log_info("creator : waiting for joiners to check network state");
+	wait_on(sem2, nb_childs);
+
+	// inform joiners that they can leave
+	log_info("creator : informing joiners that they can leave");
+	post_on(sem1, nb_childs);
+
+	// wait until every child left
+	log_info("creator : waiting for joiners to leave");
+	wait_on(sem2, nb_childs);
+
+	// check that we are alone
+	log_info("creator : checking that we are alone");
+	ASSERT_TRUE(check_alone(&founder));
+
+	// we leave
+	log_info("creator : leaving the network");
+	EXPECT_EQ(leave_network(), 0);
+	log_info("creator : left the network");
+	// check that there is no one in the network
+	ASSERT_TRUE(check_none());
+
+	exit_comm();
+	wait_all(nb_childs);
+
+	if (sem_close(sem1) == -1 || sem_close(sem2) == -1 ||
+	    sem_close(sem3) == -1) {
+		log_error("sem_close: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	if (sem_unlink("/sem1") == -1 || sem_unlink("/sem2") == -1 ||
+	    sem_unlink("/sem3") == -1) {
+		log_error("sem_unlink: %s", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+
+	free(nodes_list);
+}

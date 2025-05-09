@@ -19,3 +19,5 @@ int multicast_message(const unsigned int type, struct node_id **targets,
 		      const void *payload, const size_t size);
 
 struct node_id *get_network(unsigned int *size);
+
+struct node_id get_info(void);
