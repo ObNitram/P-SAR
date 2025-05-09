@@ -27,7 +27,7 @@ extern void clean_data_transfer();
 /// @brief Leaves the data transfer module and cleans it
 /// @param new_owner The new owner of the page that we own
 /// @details We assume that this function is only called once.
-extern void leave_data_transfer(const struct node_id new_owner);
+extern void exit_data_transfer(const struct node_id new_owner);
 
 extern void send_invalidation(size_t page_index);
 

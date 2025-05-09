@@ -93,7 +93,7 @@ void clean_data_transfer(void)
 	free(page_state);
 }
 
-void leave_data_transfer(const struct node_id new_owner)
+void exit_data_transfer(const struct node_id new_owner)
 {
 	// we wont treat any request further here
 	addHandler(RECV_PAGE, NULL, NULL);

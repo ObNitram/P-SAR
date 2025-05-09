@@ -16,16 +16,32 @@
 #include "lock/lock.h"
 #include "utils/utils.h"
 #include "utils/logger.h"
-#include "library_messages.h"
 #include "Naimi_Trehel.h"
 #include "notification/notification.h"
 #include "memory/memory.h"
 #include "comm/comm.h"
+#include "network/network.new.h"
+#include "core/data_transfer.h"
 
-// 1 if we have joined the DSM else 0
 static struct cond_var cv = COND_VAR_INIT;
 static bool in_dsm = false;
-static bool acked = false;
+
+static void wait_in_dsm(void)
+{
+	pthread_mutex_lock(&cv.lock);
+	while (!in_dsm) {
+		pthread_cond_wait(&cv.cond, &cv.lock);
+	}
+	pthread_mutex_unlock(&cv.lock);
+}
+
+static void signal_in_dsm(void)
+{
+	pthread_mutex_lock(&cv.lock);
+	in_dsm = true;
+	pthread_cond_broadcast(&cv.cond);
+	pthread_mutex_unlock(&cv.lock);
+}
 
 static void memory_lock_status_notification(int fd)
 {
@@ -94,15 +110,12 @@ static void sigsegv_send_invalidation_notification(int fd)
 }
 static int sigsegv_fd3 = 0;
 
-static void create_all_chans(bool is_owner)
+static void create_all_chans(void)
 {
 	memory_fd1 = create_chan(memory_lock_status_notification);
-	init_memory(memory_fd1);
 	sigsegv_fd1 = create_chan(sigsegv_sync_page_notification);
 	sigsegv_fd2 = create_chan(sigsegv_lock_status_notification);
 	sigsegv_fd3 = create_chan(sigsegv_send_invalidation_notification);
-	init_sigsegv(dsm, nb_pages, is_owner,
-		     (int[]){ sigsegv_fd1, sigsegv_fd2, sigsegv_fd3 });
 }
 
 void destroy_all_chans(void)
@@ -113,124 +126,92 @@ void destroy_all_chans(void)
 	destroy_chan(sigsegv_send_invalidation_notification, sigsegv_fd3);
 }
 
-static void wait_in_dsm(void)
+static void *build_INFO_DSM_message(size_t *sz)
 {
-	pthread_mutex_lock(&cv.lock);
-	while (!in_dsm)
-		pthread_cond_wait(&cv.cond, &cv.lock);
-	pthread_mutex_unlock(&cv.lock);
+	// total size of the mess
+	*sz = sizeof(unsigned int) + nb_pages * sizeof(struct node_id);
+
+	void *dsm_info = malloc(*sz);
+	*((unsigned int *)(dsm_info)) = nb_pages;
+
+	// copy th page owners
+	get_page_owners(dsm_info + sizeof(unsigned int));
+	return dsm_info;
 }
 
-static void signal_in_dsm(void)
+static void handle_JOIN_DSM(struct node_id *sender, void *payload)
 {
-	pthread_mutex_lock(&cv.lock);
-	in_dsm = true;
-	cv.predicate = true;
-	pthread_cond_broadcast(&cv.cond);
-	pthread_mutex_unlock(&cv.lock);
-}
-
-static void wait_acked(void)
-{
-	pthread_mutex_lock(&cv.lock);
-	while (!acked)
-		pthread_cond_wait(&cv.cond, &cv.lock);
-	acked = false;
-	pthread_mutex_unlock(&cv.lock);
-}
-
-static void signal_acked(void)
-{
-	pthread_mutex_lock(&cv.lock);
-	acked = true;
-	pthread_cond_broadcast(&cv.cond);
-	pthread_mutex_unlock(&cv.lock);
-}
-
-static void NEW_NODE_handler(struct message *message)
-{
-	struct node_id *new_node =
-		&((struct NEW_NODE_message *)message)->new_node;
-	pthread_mutex_lock(&umtx);
-	add_to_nodes(&node_list, new_node->host, new_node->port);
-	// we ack the addition of the existing node
-	struct message msg = { .message_type = ACK_NODE };
-	send_message(&message->sender, &msg, sizeof(struct message));
-	pthread_mutex_unlock(&umtx);
-}
-
-static void ACK_NODE_handler(struct message *message)
-{
-	signal_acked();
-}
-
-static void JOIN_DSM_handler(struct message *message)
-{
-	// wait until we joined the dsm
 	wait_in_dsm();
-
-	request_CS();
-
-	struct NEW_NODE_message *msg = build_NEW_NODE_message(&message->sender);
-	struct node_list *n1 = &node_list;
-
-	pthread_mutex_lock(&umtx);
-	list_for_each_entry_continue(n1, &node_list.nlist, nlist) {
-		send_message(&n1->node, (struct message *)msg,
-			     sizeof(struct NEW_NODE_message));
-		// wait for the ACK from the node
-		wait_acked();
-	}
-	free_message((struct message *)msg);
 
 	size_t sz = 0;
-	struct INFO_DSM_message *dsm_info = build_INFO_DSM_message(&sz);
-
-	send_message(&message->sender, (struct message *)dsm_info, sz);
-	add_to_nodes(&node_list, message->sender.host, message->sender.port);
-	free_message((struct message *)dsm_info);
-	pthread_mutex_unlock(&umtx);
-
-	release_CS();
+	void *payload = build_INFO_DSM_message(&sz);
+	if (send_message1(INFO_DSM, sender, payload, sz) == -1) {
+		log_error("fail to send INFO_DSM");
+	}
+	free(payload);
 }
 
-static void INFO_DSM_handler(struct message *message)
+// niveau 2 de profondeur dans le graphe de deps
+static void init_lvl2(bool is_owner, void *page_owners)
 {
-	struct INFO_DSM_message *idsm = (struct INFO_DSM_message *)message;
-	nb_pages = idsm->nb_pages;
+	init_core(nb_pages, &me);
+	init_data_transfer(nb_pages, page_owners);
+	init_sigsegv(dsm, nb_pages, is_owner,
+		     (int[3]){ sigsegv_fd1, sigsegv_fd2, sigsegv_fd3 });
+}
 
-	void *addr = idsm + 1;
+static void exit_lvl2()
+{
+	exit_sigsegv();
+	// trouver une solution pour le transferer à un node qui exit pas...
+	exit_data_transfer(me);
+	// meme probleme ici
+	exit_core(me);
+}
 
-	pthread_mutex_lock(&umtx);
-	struct node_id *n = (struct node_id *)addr;
-	for (unsigned int i = 0; i < idsm->nb_nodes; i++) {
-		add_to_nodes(&node_list, n->host, n->port);
-		n++;
-	}
-	pthread_mutex_unlock(&umtx);
+// niveau 3 de profondeur dans le graphe de deps
+static void init_lvl3(const struct node_id *father)
+{
+	init_memory(memory_fd1);
+	join_network(&me, father);
+}
+
+static void exit_lvl3()
+{
+	leave_network();
+	exit_memory();
+}
+
+// niveau 4 de profondeur dans le graphe de deps
+static void init_lvl4(void)
+{
+	init_comm();
+	create_all_chans();
+}
+
+static void exit_lvl4(void)
+{
+	destroy_all_chans();
+	exit_comm();
+}
+
+static void handle_INFO_DSM(struct node_id *sender, void *payload)
+{
+	nb_pages = *((unsigned int *)payload);
 	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
 		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	create_all_chans(false);
-	init_data_transfer(nb_pages, n);
-
-	// we joined the DSM notify if there is some waiting requests
+	if (dsm == MAP_FAILED) {
+		log_error("map allocation failed");
+		exit(EXIT_FAILURE);
+	}
+	init_lvl2(false, payload + sizeof(unsigned int));
 	signal_in_dsm();
-}
-
-static void INVALIDATION_tmp_handler(struct message *message)
-{
-	wait_in_dsm();
-	size_t *page_id = (size_t *)(message + 1);
-	set_new_owner(*page_id, &message->sender);
 }
 
 static void set_all_handlers(void)
 {
-	addHandler(NEW_NODE, NULL, NEW_NODE_handler);
-	addHandler(JOIN_DSM, NULL, JOIN_DSM_handler);
-	addHandler(INFO_DSM, NULL, INFO_DSM_handler);
-	addHandler(INVALIDATION, NULL, INVALIDATION_tmp_handler);
-	addHandler(ACK_NODE, NULL, ACK_NODE_handler);
+	add_net_handler(JOIN_DSM, handle_JOIN_DSM);
+	add_net_handler(INFO_DSM, handle_INFO_DSM);
 }
 
 static void exclude_others(void *adr, size_t s, enum lock_type lock_type,
@@ -244,26 +225,27 @@ static void exclude_others(void *adr, size_t s, enum lock_type lock_type,
 	}
 }
 
+static void init_me(const char *interface, int port)
+{
+	me.port = port;
+	strcpy(me.host, interface);
+}
+
 void *Init_DSM(size_t size, const char *interface, int port)
 {
-	// memory init
-	cv.predicate = false;
 	nb_pages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
 	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
 		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (dsm == MAP_FAILED) {
-		perror("map allocation failed");
-		return NULL;
+		log_error("map allocation failed");
+		exit(EXIT_FAILURE);
 	}
-
-	init_comm();
-	start_server(port, interface);
-	init_CS(&EMPTY_NODE, 1, 0);
-	init_nodes(&node_list);
 	set_all_handlers();
-	create_all_chans(true);
-	init_core(nb_pages, &me);
-	init_data_transfer(nb_pages, NULL);
+	init_me(interface, port);
+
+	init_lvl4();
+	init_lvl3(NULL);
+	init_lvl2(true, NULL);
 
 	signal_in_dsm();
 	return dsm;
@@ -278,35 +260,23 @@ static void free_DSM(void)
 void *join_DSM(const char *host, int connect_port, const char *interface,
 	       int server_port)
 {
-	cv.predicate = false;
-	init_nodes(&node_list);
-	init_comm();
-	start_server(server_port, interface);
 	set_all_handlers();
+	init_me(interface, server_port);
 
-	struct node_id *nd =
-		&add_to_nodes(&node_list, host, connect_port)->node;
-	init_CS(nd, 0, 0);
+	init_lvl4();
 
-	struct message mess_joining;
-	mess_joining.message_type = JOIN_DSM;
-	send_wait_message(nd, &mess_joining, sizeof(struct message), &cv);
-	init_core(nb_pages, nd);
+	struct node_id father;
+	strcpy(father.host, host);
+	father.port = connect_port;
+	init_lvl3(&father);
 
-	if (dsm == MAP_FAILED) {
-		perror("map allocation failed");
-		stop_server();
-		free_nodes(&node_list);
-		clean_core();
-		return NULL;
-	}
-	create_all_chans(false);
+	send_message1(JOIN_DSM, &father, &server_port, sizeof(int));
+	wait_in_dsm();
 	return dsm;
 }
 
 void *leave_DSM(void)
 {
-	request_CS();
 	if (list_empty(&node_list.nlist)) {
 		stop_server();
 		clean_core();

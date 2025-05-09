@@ -45,4 +45,4 @@ enum lock_status get_lock_status(const size_t page_id);
 /// @brief leave the peer to peer network
 /// @details
 /// @param delegate
-int leave_core(const struct node_id delegate);
+int exit_core(const struct node_id delegate);

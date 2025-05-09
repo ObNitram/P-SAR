@@ -106,7 +106,7 @@ void *init_sigsegv(void *dsm, size_t nb_page, bool is_owner, int chans[3])
 	return dsm;
 }
 
-void clean_sigsegv()
+void exit_sigsegv()
 {
 	int exit_status = EXIT_SUCCESS;
 
