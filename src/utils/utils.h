@@ -56,6 +56,11 @@ enum message_type {
 };
 extern char *mess_type_str[NUMBER_OF_MSG_TYPE];
 
+struct node_list {
+	struct node_id node;
+	struct list_head nlist;
+};
+
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
