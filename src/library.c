@@ -19,6 +19,7 @@
 #include "network/network.new.h"
 #include "core/data_transfer.h"
 #include "notification_chans.h"
+#include "network/utils/message_type.h"
 
 static struct cond_var cv = COND_VAR_INIT;
 static bool in_dsm = false;
@@ -58,8 +59,8 @@ static void handle_JOIN_DSM(struct node_id *sender, void *payload)
 	wait_in_dsm();
 
 	size_t sz = 0;
-	void *payload = build_INFO_DSM_message(&sz);
-	if (send_message1(INFO_DSM, sender, payload, sz) == -1) {
+	void *payload2 = build_INFO_DSM_message(&sz);
+	if (send_message1(INFO_DSM, sender, payload2, sz) == -1) {
 		log_error("fail to send INFO_DSM");
 	}
 	free(payload);
@@ -196,7 +197,7 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 	father.port = connect_port;
 	init_lvl3(&father);
 
-	send_message1(JOIN_DSM, &father, &server_port, sizeof(int));
+	send_message1(JOIN_DSM, &father, NULL, 0);
 	wait_in_dsm();
 	return dsm;
 }

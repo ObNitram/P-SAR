@@ -9,17 +9,7 @@ unsigned int nb_pages = 0;
 unsigned int nb_nodees = 0;
 struct node_list node_list;
 
-const struct node_id EMPTY_NODE = { .host = "", .port = -1 };
 struct node_id me;
-
-char *mess_type_str[NUMBER_OF_MSG_TYPE] = {
-	"ASK_LOCK",	   "GET_LOCK", "UNLOCK",	"JOIN_DSM",
-	"INFO_DSM",	   "NEW_NODE", "ASK_PAGE",	"RECV_PAGE",
-	"RECV_PAGE_LEAVE", "DT_LEAVE", "ACK_RECV_PAGE", "INVALIDATION",
-	"SEND_STATE",	   "DELEGATE", "DELEGATE_ACK",	"REQUEST_CS",
-	"GET_CS",	   "ACK_NODE", "NEW_ROOT_CS",	"RESET_CS",
-	"ACK_CS",	   "LEAVE_CS"
-};
 
 struct node_list *add_to_nodes(struct node_list *list, const char *host,
 			       const int port)
@@ -64,16 +54,4 @@ size_t get_page_index(void *adr)
 	size_t index = (addr - dsm_addr) / PAGE_SIZE;
 
 	return index;
-}
-
-bool node_equal(const struct node_id *node1, const struct node_id *node2)
-{
-	return (node1->port == node2->port) &&
-	       (strcmp(node1->host, node2->host) == 0);
-}
-
-void node_copy(struct node_id *dst, const struct node_id *src)
-{
-	memcpy(dst->host, src->host, INET6_ADDRSTRLEN * sizeof(char));
-	dst->port = src->port;
 }

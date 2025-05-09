@@ -9,6 +9,7 @@
 #include "../utils/counter_cond_var.h"
 #include "../network/utils/node_id.h"
 #include "../network/network.new.h"
+#include "../network/utils/message_type.h"
 #define DISABLE_LOG
 #include "utils/logger.h"
 

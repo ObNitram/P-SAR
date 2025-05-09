@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../network/message.h"
+#include "../network/utils/node_id.h"
 
 /// @brief enum for the mode requested => export to library ?
 /// @details

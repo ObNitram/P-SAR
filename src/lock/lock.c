@@ -12,10 +12,10 @@
 #include "utils/utils.h"
 #include "utils/list.h"
 #include "utils/logger.h"
-#include "network/message.h"
-#include "network/network.h"
+#include "network/network.new.h"
 #include "utils/cond_var.h"
 #include "lock_internal.h"
+#include "../network/utils/message_type.h"
 
 /// @brief
 /// @details
@@ -209,7 +209,7 @@ static int unlock_internal(const size_t page_id)
 
 	switch (working_page->mode) {
 	//if mode = WRITE :
-	case WRITING:
+	case WRITING: {
 		if (!list_empty(&working_page->request)) {
 			struct request *first = list_first_entry(
 				&working_page->request, struct request, next);
@@ -217,7 +217,6 @@ static int unlock_internal(const size_t page_id)
 			if (first->mode == READ) {
 				// send <GET_LOCK, i, READ> to all request until WRITE
 				struct slsm_message request;
-				request.message_type = GET_LOCK;
 				request.initiator = me;
 				request.mode = READ;
 				request.page = page_id;
@@ -227,9 +226,8 @@ static int unlock_internal(const size_t page_id)
 						    next) {
 					if (c->mode == WRITE)
 						break;
-					send_message(
-						&c->who,
-						(struct message *)&request,
+					send_message1(
+						GET_LOCK, &c->who, &request,
 						sizeof(struct slsm_message));
 				}
 				//else if first_request = WRITE
@@ -245,8 +243,9 @@ static int unlock_internal(const size_t page_id)
 			}
 		}
 		break;
+	}
 	//if mode = READ :
-	case READING:
+	case READING: {
 		if (node_equal(&working_page->have_token, &me)) {
 			//handle unlock
 			handle_local_UNLOCK(page_id, &me);
@@ -256,6 +255,7 @@ static int unlock_internal(const size_t page_id)
 					  READ, page_id, NULL);
 		}
 		break;
+	}
 	default:
 		return -1;
 	}
@@ -279,11 +279,11 @@ void unlock(const size_t page_id, const enum lock_type lock_type)
 	pthread_mutex_unlock(&working_page->cond.lock);
 }
 
-static void handle_ASK_LOCK(struct message *message)
+static void handle_ASK_LOCK(struct node_id *sender, void *payload)
 {
 	log_info("receive ASK LOCK");
 	incr_counter(&handler_counter, false);
-	struct slsm_message request = *((struct slsm_message *)message);
+	struct slsm_message request = *((struct slsm_message *)payload);
 	struct core_info *working_page = core_info + request.page;
 
 	pthread_mutex_lock(&working_page->cond.lock);
@@ -297,8 +297,8 @@ static void handle_ASK_LOCK(struct message *message)
 		//if last_writer != 0 :
 	} else if (last_writer != NULL) {
 		//send(<ASK_LOCK, j, m>) to last_writer
-		send_message(&last_writer->who, (struct message *)&request,
-			     sizeof(struct slsm_message));
+		send_message1(ASK_LOCK, &last_writer->who, &request,
+			      sizeof(struct slsm_message));
 		//else :
 	} else {
 		//if have_token = i
@@ -360,9 +360,8 @@ static void handle_ASK_LOCK(struct message *message)
 				 working_page->have_token.host,
 				 working_page->have_token.port);
 			//send(<ASK_LOCK, j, m>) to have_token
-			send_message(&working_page->have_token,
-				     (struct message *)&request,
-				     sizeof(struct slsm_message));
+			send_message1(ASK_LOCK, &working_page->have_token,
+				      &request, sizeof(struct slsm_message));
 		}
 	}
 	pthread_mutex_unlock(&working_page->cond.lock);
@@ -370,11 +369,11 @@ static void handle_ASK_LOCK(struct message *message)
 	log_info("ASK LOCK treat");
 }
 
-static void handle_GET_LOCK(struct message *message)
+static void handle_GET_LOCK(struct node_id *sender, void *payload)
 {
 	log_info("receive GET LOCK");
 	incr_counter(&handler_counter, false);
-	struct slsm_message request = *((struct slsm_message *)message);
+	struct slsm_message request = *((struct slsm_message *)payload);
 	struct core_info *working_page = core_info + request.page;
 
 	pthread_mutex_lock(&working_page->cond.lock);
@@ -388,7 +387,7 @@ static void handle_GET_LOCK(struct message *message)
 		//if mode = READ :
 		case READ:
 			//have_token <- j
-			node_copy(&working_page->have_token, &request.sender);
+			node_copy(&working_page->have_token, sender);
 			break;
 		default:
 			// log erreur should not be possible
@@ -401,40 +400,39 @@ static void handle_GET_LOCK(struct message *message)
 	decr_counter(&handler_counter, false);
 }
 
-static void handle_UNLOCK(struct message *message)
+static void handle_UNLOCK(struct node_id *sender, void *payload)
 {
 	log_info("receive UNLOCK");
 	incr_counter(&handler_counter, false);
-	struct slsm_message request = *((struct slsm_message *)message);
+	struct slsm_message request = *((struct slsm_message *)payload);
 	struct core_info *working_page = core_info + request.page;
 
 	pthread_mutex_lock(&working_page->cond.lock);
 	if (!node_equal(&working_page->have_token, &me)) {
-		send_message(&working_page->have_token, message,
-			     sizeof(struct slsm_message));
+		send_message1(UNLOCK, &working_page->have_token, payload,
+			      sizeof(struct slsm_message));
 	} else {
-		handle_local_UNLOCK(request.page, &request.sender);
+		handle_local_UNLOCK(request.page, sender);
 	}
 	pthread_mutex_unlock(&working_page->cond.lock);
 	decr_counter(&handler_counter, false);
 }
 
-static void handle_DELEGATE(struct message *buff)
+static void handle_DELEGATE(struct node_id *sender, void *payload)
 {
-	struct delegate_message message = unserialize_delegate_message(buff);
+	struct delegate_message message = unserialize_delegate_message(payload);
 	log_info("receive DELEGATE %s:%d -> %s:%d", message.sender.host,
-		 message.sender.port, message.delegate.host,
-		 message.delegate.port);
+		 sender->port, message.delegate.host, message.delegate.port);
 	for (int i = 0; i < core_size; i++) {
 		pthread_mutex_lock(&core_info[i].cond.lock);
-		if (node_equal(&core_info[i].have_token, &message.sender)) {
+		if (node_equal(&core_info[i].have_token, sender)) {
 			node_copy(&core_info[i].have_token, &message.delegate);
 		}
 		struct list_head *cur, *tmp;
 		list_for_each_safe(cur, tmp, &core_info[i].request) {
 			struct request *req =
 				container_of(cur, struct request, next);
-			if (node_equal(&req->who, &message.sender)) {
+			if (node_equal(&req->who, sender)) {
 				list_del(cur);
 			}
 		}
@@ -442,12 +440,10 @@ static void handle_DELEGATE(struct message *buff)
 	}
 
 	//send ACK
-	struct message ack;
-	ack.message_type = DELEGATE_ACK;
-	send_message(&message.sender, &ack, sizeof(ack));
+	send_message1(DELEGATE_ACK, sender, NULL, 0);
 }
 
-static void handle_DELEGATE_ACK(struct message *message)
+static void handle_DELEGATE_ACK(struct node_id *sender, void *payload)
 {
 	log_info("receive ACK");
 	//decr counter
@@ -455,11 +451,11 @@ static void handle_DELEGATE_ACK(struct message *message)
 }
 
 // <number_pages,<page_id,number_request,<request>*>*>
-static void handle_SEND_STATE(struct message *message)
+static void handle_SEND_STATE(struct node_id *sender, void *payload)
 {
 	log_info("receive STATE");
 	//receive state
-	void *cursor = message + 1;
+	void *cursor = payload;
 
 	size_t number_pages = *(size_t *)cursor;
 	cursor += sizeof(number_pages);
@@ -498,20 +494,19 @@ void init_core(const size_t nbpages, const struct node_id *have_token)
 	core_size = nbpages;
 
 	// init handler
-	addHandler(ASK_LOCK, NULL, handle_ASK_LOCK);
-	addHandler(UNLOCK, NULL, handle_UNLOCK);
-	addHandler(GET_LOCK, NULL, handle_GET_LOCK);
-	addHandler(DELEGATE, NULL, handle_DELEGATE);
-	addHandler(DELEGATE_ACK, NULL, handle_DELEGATE_ACK);
-	addHandler(SEND_STATE, NULL, handle_SEND_STATE);
+	add_net_handler(ASK_LOCK, handle_ASK_LOCK);
+	add_net_handler(UNLOCK, handle_UNLOCK);
+	add_net_handler(GET_LOCK, handle_GET_LOCK);
+	add_net_handler(DELEGATE, handle_DELEGATE);
+	add_net_handler(DELEGATE_ACK, handle_DELEGATE_ACK);
+	add_net_handler(SEND_STATE, handle_SEND_STATE);
 }
 
 void clean_core(void)
 {
 	for (int i = 0; i < core_size; i++) {
 		sem_destroy(&core_info[i].write_auto_lock);
-		pthread_mutex_destroy(&core_info[i].cond.lock);
-		pthread_cond_destroy(&core_info[i].cond.cond);
+		destroy_cond(&core_info[i].cond);
 		clean_requests(&core_info[i]);
 	}
 	free(core_info);
@@ -563,10 +558,10 @@ int exit_core(const struct node_id delegate)
 	}
 
 	// build message : <number_pages,<page_id,number_request,<request>*>*>
-	size_t message_size = sizeof(struct message) + message_data_size;
-	struct message *state_message = (struct message *)malloc(message_size);
-	state_message->message_type = SEND_STATE;
-	void *cursor = state_message + 1;
+	size_t message_size = message_data_size;
+	void *state_message = malloc(message_size);
+	// state_message->message_type = SEND_STATE;
+	void *cursor = state_message;
 
 	//copy number_pages
 	memcpy(cursor, &number_token, sizeof(number_token));
@@ -585,35 +580,33 @@ int exit_core(const struct node_id delegate)
 	log_info("send %zu to %s:%d of size %zu", state_message->message_type,
 		 delegate.host, delegate.port, message_size);
 
-	send_message(&delegate, state_message, message_size);
+	send_message1(SEND_STATE, &delegate, state_message, message_size);
 
 	free(state_message);
 
 	struct delegate_message delegate_message = {
-		.message_type = DELEGATE,
-		.sender = me,
 		.delegate = delegate,
 	};
 
-	log_info("delegate_message %s:%d -> %s:%d",
-		 delegate_message.sender.host, delegate_message.sender.port,
+	log_info("delegate_message %s:%d -> %s:%d", me.host, me.port,
 		 delegate_message.delegate.host,
 		 delegate_message.delegate.port);
 
-	char buff[sizeof(struct message) + NODEID_SIZE];
+	char buff[NODEID_SIZE];
 	serialize_delegate_message(buff, &delegate_message);
 
 	struct delegate_message test_log = unserialize_delegate_message(buff);
 
-	log_info("test delegate %s:%d -> %s:%d", test_log.sender.host,
-		 test_log.sender.port, test_log.delegate.host,
-		 test_log.delegate.port);
+	log_info("test delegate %s:%d -> %s:%d", test_log.sender.host, me.port,
+		 test_log.delegate.host, test_log.delegate.port);
 
 	log_info("broadcast delegate message");
 
 	//notifier tous les noeud du depart de ce noeud broadcast
-	broadcast_wait_message((struct message *)buff, sizeof(buff),
-			       &DELEGATE_ACK_counter);
+	int nb_sent = broadcast_message1(DELEGATE, NULL, buff,
+					 sizeof(struct delegate_message));
+	set_counter(&DELEGATE_ACK_counter, nb_sent, false);
+	wait_on_counter(&DELEGATE_ACK_counter, false); // wait for all ack
 
 	log_info("broadcast has been ack");
 

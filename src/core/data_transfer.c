@@ -7,6 +7,7 @@
 #include "../utils/cond_var.h"
 #include "../utils/counter_cond_var.h"
 #include "../utils/utils.h"
+#include "../network/utils/message_type.h"
 #include "../memory/memory.h"
 // #define DISABLE_LOG
 #include "../utils/logger.h"

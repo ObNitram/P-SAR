@@ -8,7 +8,7 @@
 #include "comm/comm.h"
 #include "utils/logger.h"
 
-int create_chan(void (*cb)(int))
+static int create_chan(void (*cb)(int))
 {
 	// create struct
 	int fds[2] = { 0 };
@@ -23,7 +23,7 @@ int create_chan(void (*cb)(int))
 	return fds[1];
 }
 
-int destroy_chan(void (*cb)(int), int fd)
+static int destroy_chan(void (*cb)(int), int fd)
 {
 	//delete handler
 	int ret = 0;
@@ -39,4 +39,3 @@ int destroy_chan(void (*cb)(int), int fd)
 	}
 	return ret;
 }
-
