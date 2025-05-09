@@ -3,6 +3,7 @@
 #include <netinet/in.h>
 #include <stdbool.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 /// @brief Structure representing a node identifier.
 /// @details Contains the host and port information for a node.
@@ -52,6 +53,24 @@ static bool node_equal(const struct node_id *node1, const struct node_id *node2)
 {
 	return (node1->port == node2->port) &&
 	       (strcmp(node1->host, node2->host) == 0);
+}
+
+/// @brief Compares node1 with node2.
+/// @return Return a positive value if node1 > node2 and a negative value if node1 < node2.
+static int node_cmp(const struct node_id *node1, const struct node_id *node2)
+{
+	struct in_addr ip_addr1;
+	struct in_addr ip_addr2;
+	if (inet_pton(AF_INET, node1->host, &ip_addr1) <= 0 ||
+	    inet_pton(AF_INET, node2->host, &ip_addr2) <= 0) {
+		return 0;
+	}
+
+	if (ip_addr1.s_addr == ip_addr2.s_addr) {
+		return node1->port - node2->port;
+	} else {
+		return ip_addr1.s_addr - ip_addr2.s_addr;
+	}
 }
 
 static void node_empty(struct node_id *node)

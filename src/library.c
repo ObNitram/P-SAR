@@ -78,7 +78,6 @@ static void init_lvl2(bool is_owner, void *page_owners)
 static void *exit_lvl2()
 {
 	exit_sigsegv();
-	// correct ?
 	unsigned int network_size = 0;
 	struct node_id *network = get_network(&network_size);
 	void *res = NULL;
@@ -92,13 +91,13 @@ static void *exit_lvl2()
 			(node_equal(&network[network_size - 1], &me)) ?
 				network[0] :
 				network[network_size - 1];
-		exit_data_transfer(succ);
+		exit_data_transfer();
+		// fix this
 		exit_core(succ);
 	}
 	munmap(dsm, nb_pages * PAGE_SIZE);
 	dsm = NULL;
 	cv.predicate = false;
-	free(network);
 	return res;
 }
 

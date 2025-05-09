@@ -63,6 +63,10 @@ void init_data_transfer(unsigned int nb_pages, struct node_id *owners)
 	add_net_handler(DT_LEAVE, handle_DT_LEAVE);
 	add_net_handler(ACK_DT_LEAVE, handle_ACK_DT_LEAVE);
 	add_net_handler(INVALIDATION, handle_INVALIDATION);
+	add_net_handler(ASK_SUCCESSOR, handle_ASK_SUCCESSOR);
+	add_net_handler(ACK_SUCC, handle_ACK_SUCC);
+	add_net_handler(YOU_SUCC, handle_YOU_SUCC);
+	add_net_handler(NYOU_SUCC, handle_NYOU_SUCC);
 
 	page_owners = malloc(nb_pages * sizeof(struct node_id));
 	page_cv = malloc(nb_pages * sizeof(struct cond_var));
@@ -92,8 +96,47 @@ void clean_data_transfer(void)
 	free(page_state);
 }
 
-void exit_data_transfer(struct node_id new_owner)
+static void find_successor(void)
 {
+retry:
+	int nb_sent = broadcast_message1(ASK_SUCCESSOR, NULL, NULL, 0);
+	set_counter(&ack_counter, nb_sent, false);
+	wait_on_counter(&ack_counter, false);
+
+	// wait for all others to leave
+	pthread_mutex_lock(&leaving_cv.lock);
+	while (wait_for > 0)
+		pthread_cond_wait(&leaving_cv.cond, &leaving_cv.lock);
+
+	// i am the last in network
+	if (successor == NULL) {
+		unsigned int network_size = 0;
+		struct node_id *network = get_network(&network_size);
+		pthread_mutex_unlock(&leaving_cv.lock);
+		free(network);
+		// make sure that i am
+		if (network_size == 1)
+			return;
+		else // someone joined in between
+			goto retry;
+	}
+exit:
+	pthread_mutex_unlock(&leaving_cv.lock);
+}
+
+void exit_data_transfer(void)
+{
+	pthread_mutex_lock(&leaving_cv.lock);
+	leaving = true;
+	pthread_mutex_unlock(&leaving_cv.lock);
+
+	find_successor();
+
+	if (successor == NULL) {
+		clean_data_transfer();
+		return;
+	}
+
 	// we wont treat any request further here
 	add_net_handler(ASK_PAGE, NULL);
 	add_net_handler(RECV_PAGE, NULL);
@@ -114,17 +157,17 @@ void exit_data_transfer(struct node_id new_owner)
 	log_info("Inform new Owner\n");
 	size_t payload_sz;
 	void *payload = build_multiple_PAGE_message(index_pages, nb_owned_pages,
-						    &payload_sz, &new_owner,
+						    &payload_sz, successor,
 						    RECV_PAGE_LEAVE);
-	send_message1(RECV_PAGE_LEAVE, &new_owner, payload, payload_sz);
+	send_message1(RECV_PAGE_LEAVE, successor, payload, payload_sz);
 	wait_on_cond(&leaving_cv, false);
 	free(payload);
 	log_info("ACK recved from new Owner\n");
 
 	// broadcast to each other node, the info about the new owner
-	payload = build_DT_LEAVE_message(index_pages, nb_owned_pages,
-					 &new_owner, &payload_sz);
-	const struct node_id *except[] = { &new_owner, NULL };
+	payload = build_DT_LEAVE_message(index_pages, nb_owned_pages, successor,
+					 &payload_sz);
+	const struct node_id *except[] = { successor, NULL };
 	int nb_sent = broadcast_message1(DT_LEAVE, except, payload, payload_sz);
 	log_info("Informed %d nodes that i leave\n", nb_sent);
 
@@ -137,6 +180,7 @@ void exit_data_transfer(struct node_id new_owner)
 	for (size_t i = 0; i < nb_owned_pages; i++)
 		pthread_mutex_unlock(&(page_cv + index_pages[i])->lock);
 
+	free(successor);
 	clean_data_transfer();
 }
 

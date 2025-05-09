@@ -25,6 +25,11 @@ static struct cond_var leaving_cv;
 
 static struct counter_cond_var ack_counter;
 
+static bool leaving = false;
+static unsigned int wait_for = 0;
+static bool acked = false;
+static struct node_id *successor = NULL;
+
 static void update_page(size_t page_id, const struct node_id *owner,
 			const struct node_id *sender, const void *addr_np,
 			enum message_type recv_type)
@@ -289,4 +294,60 @@ static void handle_RECV_PAGE_LEAVE(struct node_id *sender, void *payload)
 	char ack = 1;
 	send_message1(ACK_RECV_PAGE, sender, &ack, sizeof(char));
 	log_info("ACK sent from new Owner of %zu pages\n", *nb_ids);
+
+	pthread_mutex_lock(&leaving_cv.lock);
+	wait_for--;
+	if (!wait_for && leaving)
+		pthread_cond_signal(&leaving_cv.cond);
+	pthread_mutex_unlock(&leaving_cv.lock);
+}
+
+static void handle_ASK_SUCCESSOR(struct node_id *sender, void *payload)
+{
+	pthread_mutex_lock(&leaving_cv.lock);
+	if (leaving) {
+		if (node_cmp(&me, sender) < 0) {
+accept_faith:
+			wait_for++;
+			send_message1(ACK_SUCC, sender, NULL, 0);
+			pthread_cond_wait(&leaving_cv.cond, &leaving_cv.lock);
+			goto exit;
+		} else {
+			send_message1(NACK_SUCC, sender, NULL, 0);
+		}
+	} else
+		goto accept_faith;
+
+exit:
+	pthread_mutex_unlock(&leaving_cv.lock);
+}
+
+static void handle_ACK_SUCC(struct node_id *sender, void *payload)
+{
+	pthread_mutex_lock(&leaving_cv.lock);
+	if (successor == NULL) {
+		successor = malloc(sizeof(struct node_id));
+		node_copy(successor, sender);
+		send_message1(YOU_SUCC, sender, NULL, 0);
+	} else {
+		send_message1(NYOU_SUCC, sender, NULL, 0);
+	}
+	pthread_mutex_unlock(&leaving_cv.lock);
+
+	decr_counter(&ack_counter, false);
+}
+
+static void handle_YOU_SUCC(struct node_id *sender, void *payload)
+{
+	pthread_mutex_lock(&leaving_cv.lock);
+	pthread_cond_signal(&leaving_cv.cond);
+	pthread_mutex_unlock(&leaving_cv.lock);
+}
+
+static void handle_NYOU_SUCC(struct node_id *sender, void *payload)
+{
+	pthread_mutex_lock(&leaving_cv.lock);
+	wait_for--;
+	pthread_cond_signal(&leaving_cv.cond);
+	pthread_mutex_unlock(&leaving_cv.lock);
 }
