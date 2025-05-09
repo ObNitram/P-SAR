@@ -3,40 +3,26 @@
 #include <sys/mman.h>
 
 extern "C" {
-#include "library.h"
-#include "network/network.h"
-#include "network/message.h"
-#include "utils/list.h"
+#include "network/utils/node_id.h"
 #include "utils/logger.h"
-#include "lock/lock.h"
 #include "core/data_transfer.h"
 #include "utils/utils.h"
-#include "sigsegv_handler/sigsegv.h"
 #include "memory/memory.h"
 #include "comm/comm.h"
+#include "network/network.new.h"
+#include "notification_chans.h"
 #include <semaphore.h>
 #include <fcntl.h>
 }
 
 static const char *addr_init = "127.0.0.1";
-static const int init_port = 2451;
-static const int joiner_port = 4321;
-static const int nb_pages_ = 10;
+static int nb_pages_ = 10;
+static struct node_id creator = { .host = "127.0.0.1", .port = 2450 };
+static struct node_id joiner1 = { .host = "127.0.0.1", .port = 2451 };
 
-struct node_id page_owners_both[10] = {
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port },
-	{ .host = "127.0.0.1", .port = init_port }
-};
-
-#define SIZE_DSM 40960
+struct node_id page_owners_both[10] = { creator, creator, creator, creator,
+					creator, creator, creator, creator,
+					creator, creator };
 
 static int check_page_owners_equality()
 {
@@ -48,9 +34,29 @@ static int check_page_owners_equality()
 	return 1;
 }
 
+static void alloc_dsm(unsigned int nb_pagess)
+{
+	nb_pages = nb_pagess;
+	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
+		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (dsm == MAP_FAILED) {
+		log_error("map allocation failed");
+		exit(EXIT_FAILURE);
+	}
+}
+
+static void clean_up()
+{
+	clean_data_transfer();
+	munmap(dsm, nb_pages * PAGE_SIZE);
+	leave_network();
+	exit_comm();
+	destroy_all_chans();
+}
+
 // we have two proc
 // one that inits the DSM, the other who will try to join it
-TEST(data_transfer, join_then_try_sync_a_page)
+TEST(data_transfer, try_sync_a_page)
 {
 	init_logger(stdout);
 
@@ -67,14 +73,71 @@ TEST(data_transfer, join_then_try_sync_a_page)
 
 	pid_t pid = fork();
 	int eq = 0;
-	if (pid) {
-		Init_DSM(SIZE_DSM, LOCALHOST, init_port);
+	if (!pid) {
+		alloc_dsm(nb_pages_);
+		init_data_transfer(nb_pages_, page_owners_both);
+		create_all_chans();
+		init_memory(memory_fd1);
+
+		// check that data_transfer is correctly init
+		eq = check_page_owners_equality();
+		ASSERT_EQ(eq, 1);
+
+		// wait until creator is setup
+		log_info("joiner1 : waiting for creator to setup");
+		sem_wait(sem1);
+		join_network(&joiner1, &creator);
+
+		// wait until creator informs me that i can sync page 0
+		log_info("joiner1 : waiting for creator signal to sync page 0");
+		sem_wait(sem1);
+		sync_page(0);
+
+		// inform creator that i synced page 0
+		log_info("joiner1 : informing creator that i synced page 0");
+		sem_post(sem2);
+
 		for (size_t i = 0; i < nb_pages_; i++) {
 			memory_unlock_write(i);
 		}
 
+		int *tab = (int *)dsm;
+		ASSERT_EQ(*tab, 0);
+
+		eq = 0;
+		for (int *i = tab + 1; i < tab + 100; i++) {
+			int calculated_val = *(i - 1) + (i - tab);
+			int cur_val = *i;
+			eq = calculated_val == cur_val;
+			if (!eq)
+				break;
+		}
+		ASSERT_EQ(eq, 1);
+
+		// exiting
+		log_info("joiner1 : exiting");
+		clean_up();
+		exit(0);
+	} else {
+		alloc_dsm(nb_pages_);
+		init_data_transfer(nb_pages_, NULL);
+		create_all_chans();
+		init_memory(memory_fd1);
+
+		// check that data_transfer is correctly init
 		eq = check_page_owners_equality();
 		ASSERT_EQ(eq, 1);
+
+		join_network(&creator, NULL);
+
+		// inform joiner1 that he can join
+		log_info("creator : Informing joiner1 that he can join");
+		sem_post(sem1);
+
+		// init data with some random values
+		for (size_t i = 0; i < nb_pages_; i++) {
+			memory_unlock_write(i);
+		}
 
 		// edit some data
 		int *tab = (int *)dsm;
@@ -83,19 +146,20 @@ TEST(data_transfer, join_then_try_sync_a_page)
 			*i = *(i - 1) + (i - tab);
 		}
 
+		// inform joiner that he can sync a page
+		log_info("creator : Informing joiner1 that he can sync a page");
 		sem_post(sem1);
 
-		// wait te recv an ASK_PAGE request
+		// wait until joiner1 synced page 0
+		log_info("creator : waiting for joiner1 to sync page 0");
 		sem_wait(sem2);
 
-		stop_server();
-		clean_data_transfer();
-		clean_core();
-		free_nodes(&node_list);
-		munmap(dsm, nb_pages * PAGE_SIZE);
-		exit_comm();
-		destroy_all_chans();
+		// exiting
+		log_info("creator : exiting");
+		clean_up();
+
 		wait(NULL);
+
 		nb_pages = 0;
 		nb_nodees = 0;
 
@@ -108,49 +172,5 @@ TEST(data_transfer, join_then_try_sync_a_page)
 			perror("sem_unlink");
 			exit(EXIT_FAILURE);
 		}
-	} else {
-		// wait until parent is setup
-		sem_wait(sem1);
-
-		join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
-		log_info("joined the DSM\n");
-
-		ASSERT_EQ(nb_pages, nb_pages_);
-
-		int found = 0;
-
-		eq = check_page_owners_equality();
-		ASSERT_EQ(eq, 1);
-
-		sync_page(0);
-		for (size_t i = 0; i < nb_pages_; i++) {
-			memory_unlock_write(i);
-		}
-		log_info("synced page 0\n");
-		sem_post(sem2);
-
-		int *tab = (int *)dsm;
-		ASSERT_EQ(*tab, 0);
-
-		eq = 0;
-
-		for (int *i = tab + 1; i < tab + 100; i++) {
-			int calculated_val = *(i - 1) + (i - tab);
-			int cur_val = *i;
-			eq = calculated_val == cur_val;
-			if (!eq)
-				break;
-		}
-
-		ASSERT_EQ(eq, 1);
-
-		stop_server();
-		clean_data_transfer();
-		clean_core();
-		free_nodes(&node_list);
-		munmap(dsm, nb_pages * PAGE_SIZE);
-		exit_comm();
-		destroy_all_chans();
-		exit(0);
 	}
 }
