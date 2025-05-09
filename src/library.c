@@ -11,12 +11,8 @@
 #include "sigsegv_handler/sigsegv.h"
 #include "utils/utils.h"
 #include "utils/cond_var.h"
-#include "network/network.h"
-#include "network/message.h"
 #include "lock/lock.h"
-#include "utils/utils.h"
 #include "utils/logger.h"
-#include "Naimi_Trehel.h"
 #include "notification/notification.h"
 #include "memory/memory.h"
 #include "comm/comm.h"
@@ -160,13 +156,31 @@ static void init_lvl2(bool is_owner, void *page_owners)
 		     (int[3]){ sigsegv_fd1, sigsegv_fd2, sigsegv_fd3 });
 }
 
-static void exit_lvl2()
+static void *exit_lvl2()
 {
 	exit_sigsegv();
-	// trouver une solution pour le transferer à un node qui exit pas...
-	exit_data_transfer(me);
-	// meme probleme ici
-	exit_core(me);
+	// correct ?
+	unsigned int network_size = 0;
+	struct node_id *network = get_network(&network_size);
+	void *res = NULL;
+	if (network_size == 1) {
+		clean_data_transfer();
+		clean_core();
+		res = malloc(PAGE_SIZE * nb_pages);
+		memcpy(res, dsm, PAGE_SIZE * nb_pages);
+	} else {
+		const struct node_id succ =
+			(node_equal(&network[network_size - 1], &me)) ?
+				network[0] :
+				network[network_size - 1];
+		exit_data_transfer(succ);
+		exit_core(succ);
+	}
+	munmap(dsm, nb_pages * PAGE_SIZE);
+	dsm = NULL;
+	cv.predicate = false;
+	free(network);
+	return res;
 }
 
 // niveau 3 de profondeur dans le graphe de deps
@@ -251,12 +265,6 @@ void *Init_DSM(size_t size, const char *interface, int port)
 	return dsm;
 }
 
-static void free_DSM(void)
-{
-	munmap(dsm, nb_pages * PAGE_SIZE);
-	cv.predicate = 0;
-}
-
 void *join_DSM(const char *host, int connect_port, const char *interface,
 	       int server_port)
 {
@@ -277,37 +285,11 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 
 void *leave_DSM(void)
 {
-	if (list_empty(&node_list.nlist)) {
-		stop_server();
-		clean_core();
-		clean_data_transfer();
-		clean_CS();
-		clean_sigsegv();
-		destroy_all_chans();
-		exit_comm();
-		void *res = malloc(PAGE_SIZE * nb_pages);
-		if (!res) {
-			perror("unable to allocate memory for res");
-			goto exit;
-		}
-		for (unsigned int i = 0; i < nb_pages; i++)
-			memory_unlock_read((size_t)i);
-		memcpy(res, dsm, PAGE_SIZE * nb_pages);
-exit:
-		free_DSM();
-		return res;
-	}
-	struct node_id succ = list_prev_entry(&node_list, nlist)->node;
-	leave_core(succ);
-	leave_data_transfer(succ);
-	leave_CS(succ);
-	stop_server();
-	clean_sigsegv();
-	free_DSM();
-	free_nodes(&node_list);
-	destroy_all_chans();
-	exit_comm();
-	return NULL;
+	void *res = NULL;
+	res = exit_lvl2();
+	exit_lvl3();
+	exit_lvl4();
+	return res;
 }
 
 void lock_read(void *adr, size_t s)

@@ -68,3 +68,8 @@ void send_wait_message_nolock(const struct node_id *dest,
 /// @param callBack The callback function to be invoked when the message is received.
 void addHandler(size_t message_type, struct node_id *sender,
 		void callBack(struct message *message));
+
+void broadcast_message(struct message *msg, size_t size_t);
+
+void broadcast_wait_message(struct message *msg, size_t size,
+			    struct counter_cond_var *counter);

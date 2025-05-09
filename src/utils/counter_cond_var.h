@@ -36,6 +36,14 @@ static int init_counter(struct counter_cond_var *counter)
 	return 0;
 }
 
+static int destroy_counter(struct counter_cond_var *counter)
+{
+	pthread_mutex_destroy(&counter->lock);
+	pthread_cond_destroy(&counter->cond);
+
+	return 0;
+}
+
 static int reset_counter(struct counter_cond_var *counter)
 {
 	counter->count = 0;

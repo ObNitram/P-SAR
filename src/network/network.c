@@ -555,3 +555,24 @@ void addHandler(const size_t message_type, struct node_id *sender,
 	callbacks[message_type] = callBack;
 	pthread_mutex_unlock(&callbacks_lock);
 }
+
+void broadcast_message(struct message *msg, size_t size)
+{
+	struct node_list *node = &node_list;
+	list_for_each_entry_continue(node, &node_list.nlist, nlist) {
+		send_message(&node->node, msg, size);
+	}
+}
+
+void broadcast_wait_message(struct message *msg, size_t size,
+			    struct counter_cond_var *counter)
+{
+	set_counter(counter, nb_nodees, false);
+	struct node_list *node = &node_list;
+	list_for_each_entry_continue(node, &node_list.nlist, nlist) {
+		log_info("send message %p to %s:%d", msg, node->node.host,
+			 node->node.port);
+		send_message(&node->node, msg, size);
+	}
+	wait_on_counter(counter, false);
+}

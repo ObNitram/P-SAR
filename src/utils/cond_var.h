@@ -36,6 +36,19 @@ static int init_cond(struct cond_var *cond)
 	return 0;
 }
 
+static int destroy_cond(struct cond_var *cond)
+{
+	if (cond == NULL) {
+		// log_error("invalid cond");
+		return -1;
+	}
+
+	pthread_mutex_destroy(&cond->lock);
+	pthread_cond_destroy(&cond->cond);
+
+	return 0;
+}
+
 /// @brief Wait until the counter is lower or equal to zero.
 /// @param counter The counter to work with. The mutex must be unlock.
 static int wait_on_cond(struct cond_var *cond, bool islock)

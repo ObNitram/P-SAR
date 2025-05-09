@@ -160,7 +160,7 @@ TEST(data_transfer_leave, leave_without_owning_a_page)
 				log_info("me %d synced page 0\n", i);
 			} else {
 				log_info("me %d leaving the DSM\n", i);
-				leave_data_transfer(nodes[0]);
+				exit_data_transfer(nodes[0]);
 				log_info("me %d left the DSM\n", i);
 			}
 

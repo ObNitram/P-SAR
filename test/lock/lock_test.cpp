@@ -298,7 +298,7 @@ TEST(lock, try_leave)
 		sem_wait(sem2);
 
 		log_info("try to leave the network");
-		leave_core(join);
+		exit_core(join);
 		log_info("the node successfully leave the network");
 
 		sem_post(sem1);

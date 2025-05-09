@@ -6,6 +6,9 @@
 #include "../memory/memory.h"
 #include "../utils/utils.h"
 #include "../utils/cond_var.h"
+#include "../utils/counter_cond_var.h"
+#include "../network/utils/node_id.h"
+#include "../network/network.new.h"
 #define DISABLE_LOG
 #include "utils/logger.h"
 
@@ -17,28 +20,9 @@ static struct cond_var *page_cv;
 /// @details It takes 'true' if the page is up-to-date 'false' otherwise
 static bool *page_state;
 
-static struct cond_var dt_cv;
+static struct cond_var leaving_cv;
 
-/// @brief Signal that a page is synched
-/// @param page_id The id of the page to signal
-/// @details This functions assumes that the caller already have the lock.
-static void signal_page_no_lock(size_t page_id)
-{
-	struct cond_var *cv = page_cv + page_id;
-	cv->predicate = true;
-	page_state[page_id] = true;
-	pthread_cond_broadcast(&cv->cond);
-}
-
-/// @brief Signal that a page is synched
-/// @param page_id The id of the page to signal
-static void signal_page(size_t page_id)
-{
-	struct cond_var *cv = page_cv + page_id;
-	pthread_mutex_lock(&cv->lock);
-	signal_page_no_lock(page_id);
-	pthread_mutex_unlock(&cv->lock);
-}
+static struct counter_cond_var ack_counter;
 
 static void update_page(size_t page_id, const struct node_id *owner,
 			const struct node_id *sender, const void *addr_np,
@@ -63,8 +47,10 @@ static void update_page(size_t page_id, const struct node_id *owner,
 		memory_lock_reset(page_id);
 		log_info("reseted\n");
 		// if someone is synching we wake him up
-		if (!cv->predicate)
-			signal_page_no_lock(page_id);
+		if (!cv->predicate) {
+			page_state[page_id] = true;
+			unlock_cond(cv, true);
+		}
 	}
 	log_info("tadaaa\n");
 	pthread_mutex_unlock(&cv->lock);
@@ -88,14 +74,14 @@ static void init_PAGE_message(void *addr, const size_t page_id,
 /// @brief Handler for a message that contains a new version of a page
 /// @param message The message that contains the owner, the page_id and the page
 /// @details This function is called when a message of type RECV_PAGE or RECV_PAGE_LEAVE
-static void PAGE_handler(struct message *message)
+static void handle_PAGE(struct node_id *sender, void *payload,
+			enum message_type recv_type)
 {
-	size_t *page_id = (size_t *)(message + 1);
+	size_t *page_id = (size_t *)(payload);
 	struct node_id *owner = (struct node_id *)(page_id + 1);
 	// np => new page | op => one piece
 	void *addr_np = (void *)(owner + 1);
-	update_page(*page_id, owner, &message->sender, addr_np,
-		    message->message_type);
+	update_page(*page_id, owner, sender, addr_np, recv_type);
 }
 
 /// @brief Build a message that contains a page, it's owner and id
@@ -104,31 +90,28 @@ static void PAGE_handler(struct message *message)
 /// @param owner The owner of the page
 /// @param recv_type The type of the message : expected to be either RECV_PAGE or RECV_PAGE_LEAVE
 /// @return A pointer to the message
-static struct message *build_PAGE_message(size_t page_id, size_t *sz,
-					  const struct node_id *owner,
-					  enum message_type recv_type)
+static void *build_PAGE_message(size_t page_id, size_t *sz,
+				const struct node_id *owner,
+				enum message_type recv_type)
 {
 	// contains the page_id, the owner of that page and the page itself
-	*sz = sizeof(struct message) + sizeof(size_t) + sizeof(struct node_id) +
-	      PAGE_SIZE;
-	struct message *msg = (struct message *)malloc(*sz);
-	msg->message_type = recv_type;
-	init_PAGE_message(msg + 1, page_id, owner);
-	return msg;
+	*sz = sizeof(size_t) + sizeof(struct node_id) + PAGE_SIZE;
+	void *payload = malloc(*sz);
+	init_PAGE_message(payload, page_id, owner);
+	return payload;
 }
 
-static struct message *
-build_multiple_PAGE_message(size_t page_ids[], size_t nb_ids, size_t *sz,
-			    const struct node_id *new_owner,
-			    enum message_type recv_type)
+static void *build_multiple_PAGE_message(size_t page_ids[], size_t nb_ids,
+					 size_t *sz,
+					 const struct node_id *new_owner,
+					 enum message_type recv_type)
 {
 	size_t page_msg_sz =
 		sizeof(size_t) + sizeof(struct node_id) + PAGE_SIZE;
-	*sz = sizeof(struct message) + sizeof(size_t) + nb_ids * page_msg_sz;
+	*sz = sizeof(size_t) + nb_ids * page_msg_sz;
 
-	struct message *msg = (struct message *)malloc(*sz);
-	msg->message_type = recv_type;
-	size_t *nb_ids_p = (size_t *)(msg + 1);
+	void *payload = malloc(*sz);
+	size_t *nb_ids_p = (size_t *)(payload);
 	*nb_ids_p = nb_ids;
 
 	void *addr = (void *)(nb_ids_p + 1);
@@ -136,14 +119,14 @@ build_multiple_PAGE_message(size_t page_ids[], size_t nb_ids, size_t *sz,
 		init_PAGE_message(addr, page_ids[i], new_owner);
 		addr += page_msg_sz;
 	}
-	return msg;
+	return payload;
 }
 
 /// @brief Handler for the reception of a synched page
 /// @param message The message that contains the owner, the page_id and the page
-static void RECV_PAGE_handler(struct message *message)
+static void handle_RECV_PAGE(struct node_id *sender, void *payload)
 {
-	PAGE_handler(message);
+	handle_PAGE(sender, payload, RECV_PAGE);
 }
 
 /// @brief Transfers a page to a requester
@@ -153,11 +136,11 @@ static void RECV_PAGE_handler(struct message *message)
 /// @param page_id The id of the page to transfer
 static void transfer_page(struct node_id *requester, size_t page_id)
 {
-	size_t ms_sz;
-	struct message *msg =
-		build_PAGE_message(page_id, &ms_sz, &me, RECV_PAGE);
-	send_message(requester, msg, ms_sz);
-	free_message(msg);
+	size_t payload_sz;
+	void *payload =
+		build_PAGE_message(page_id, &payload_sz, &me, RECV_PAGE);
+	send_message1(RECV_PAGE, requester, payload, payload_sz);
+	free(payload);
 }
 
 /// @brief Build a message that contains a page_id and a node, used for ASK_PAGE and DT_LEAVE
@@ -165,23 +148,23 @@ static void transfer_page(struct node_id *requester, size_t page_id)
 /// @param node The node that asked for the page
 /// @param sz It will contain the size of the message
 /// @return A pointer to the message
-static struct message *
-build_rqst_message(size_t page_id, const struct node_id *node, size_t *sz)
+static void *build_rqst_message(size_t page_id, const struct node_id *node,
+				size_t *sz)
 {
 	// contains a page_id and a node
-	*sz = sizeof(struct message) + sizeof(size_t) + sizeof(struct node_id);
-	struct message *msg = (struct message *)malloc(*sz);
-	size_t *index_p = (size_t *)(msg + 1);
+	*sz = sizeof(size_t) + sizeof(struct node_id);
+	void *payload = malloc(*sz);
+	size_t *index_p = (size_t *)(payload);
 	*index_p = page_id;
 	node_copy((struct node_id *)(index_p + 1), node);
-	return msg;
+	return payload;
 }
 
 /// @brief Handler for a message that asks for a page
 /// @param message The message that contains the id of the asked page and it's requester
-static void ASK_PAGE_handler(struct message *message)
+static void handle_ASK_PAGE(struct node_id *sender, void *payload)
 {
-	size_t *page_id = (size_t *)(message + 1);
+	size_t *page_id = (size_t *)(payload);
 	struct node_id *requester = (struct node_id *)(page_id + 1);
 
 	pthread_mutex_lock(&(page_cv + *page_id)->lock);
@@ -191,9 +174,8 @@ static void ASK_PAGE_handler(struct message *message)
 	if (node_equal(owner, &me)) {
 		transfer_page(requester, *page_id);
 	} else {
-		send_message(owner, message,
-			     sizeof(struct message) + sizeof(size_t) +
-				     sizeof(struct node_id));
+		send_message1(ASK_PAGE, owner, payload,
+			      sizeof(size_t) + sizeof(struct node_id));
 	}
 }
 
@@ -201,28 +183,24 @@ static void ASK_PAGE_handler(struct message *message)
 /// @param page_id The id of the page
 /// @param sz It will contain the size of the message
 /// @return A pointer to the message
-static struct message *build_ASK_PAGE_message(size_t page_id, size_t *sz)
+static void *build_ASK_PAGE_message(size_t page_id, size_t *sz)
 {
-	struct message *msg = build_rqst_message(page_id, &me, sz);
-	msg->message_type = ASK_PAGE;
-	return msg;
+	void *payload = build_rqst_message(page_id, &me, sz);
+	return payload;
 }
 
 /// @brief Handler from a node that have been acknowledged that he is the new owner of a page
-static void ACK_RECV_PAGE_handler(struct message *message)
+static void handle_ACK_RECV_PAGE(struct node_id *sender, void *payload)
 {
-	pthread_mutex_lock(&dt_cv.lock);
-	dt_cv.predicate = true;
-	pthread_cond_signal(&dt_cv.cond);
-	pthread_mutex_unlock(&dt_cv.lock);
+	unlock_cond(&leaving_cv, false);
 }
 
 /// @brief Handler for a message that informs us about the new owner of a page
 /// @param message Contains the new owner of a given page with it's id
-static void DT_LEAVE_handler(struct message *message)
+static void handle_DT_LEAVE(struct node_id *sender, void *payload)
 {
 	log_info("Someone is leaving, gud by...\n");
-	const struct node_id *new_owner = (struct node_id *)(message + 1);
+	const struct node_id *new_owner = (struct node_id *)(payload);
 	const size_t *nb_ids = (size_t *)(new_owner + 1);
 	const size_t *start_tab = nb_ids + 1;
 	const size_t *end_tab = start_tab + *nb_ids;
@@ -234,28 +212,29 @@ static void DT_LEAVE_handler(struct message *message)
 		pthread_mutex_lock(&cv->lock);
 		struct node_id *old_owner = page_owners + page_id;
 
-		if (node_equal(old_owner, &message->sender)) {
+		if (node_equal(old_owner, sender)) {
 			node_copy(old_owner, new_owner);
 			if (!cv->predicate) {
-				size_t ms_sz;
-				struct message *msg =
-					build_ASK_PAGE_message(page_id, &ms_sz);
-				send_message(new_owner, msg, ms_sz);
-				free_message(msg);
+				size_t payload_sz;
+				void *payload2 = build_ASK_PAGE_message(
+					page_id, &payload_sz);
+				send_message1(ASK_PAGE, new_owner, payload2,
+					      payload_sz);
+				free(payload2);
 			}
 		}
 		pthread_mutex_unlock(&cv->lock);
 	}
 
 	// we ACK the change
-	struct message msg = { .message_type = ACK_RECV_PAGE };
-	send_message(&message->sender, &msg, sizeof(struct message));
+	char ack = 1;
+	send_message1(ACK_DT_LEAVE, sender, &ack, sizeof(char));
 	log_info("ACK leaving sent !\n");
+}
 
-	// we remove the old owner from the node_list
-	pthread_mutex_lock(&umtx);
-	free(remove_node(&node_list, &message->sender));
-	pthread_mutex_unlock(&umtx);
+static void handle_ACK_DT_LEAVE(struct node_id *sender, void *payload)
+{
+	decr_counter(&ack_counter, false);
 }
 
 /// @brief Build a message that informs us about the new owner of a page
@@ -263,17 +242,14 @@ static void DT_LEAVE_handler(struct message *message)
 /// @param new_owner The new owner of the page
 /// @param sz It will contain the size of the message
 /// @return A pointer to the message
-static struct message *build_DT_LEAVE_message(size_t page_ids[], size_t nb_ids,
-					      const struct node_id *new_owner,
-					      size_t *sz)
+static void *build_DT_LEAVE_message(size_t page_ids[], size_t nb_ids,
+				    const struct node_id *new_owner, size_t *sz)
 {
-	*sz = sizeof(struct message) + sizeof(struct node_id) +
-	      sizeof(size_t) * (nb_ids + 1);
-	struct message *msg = (struct message *)malloc(*sz);
-	msg->message_type = DT_LEAVE;
+	*sz = sizeof(struct node_id) + sizeof(size_t) * (nb_ids + 1);
+	void *payload = malloc(*sz);
 
 	// set new owner
-	struct node_id *new_owner_p = (struct node_id *)(msg + 1);
+	struct node_id *new_owner_p = (struct node_id *)(payload);
 	node_copy(new_owner_p, new_owner);
 
 	// number of page sent
@@ -285,14 +261,14 @@ static struct message *build_DT_LEAVE_message(size_t page_ids[], size_t nb_ids,
 	for (size_t i = 0; i < nb_ids; i++) {
 		*(page_ids_p + i) = page_ids[i];
 	}
-	return msg;
+	return payload;
 }
 
 /// @brief Handler for a message that informs us that we are the owner of the new page because the sender is leaving and the age itself
 /// @param message Contains the page itself and it's id
-static void RECV_PAGE_LEAVE_handler(struct message *message)
+static void handle_RECV_PAGE_LEAVE(struct node_id *sender, void *payload)
 {
-	size_t *nb_ids = (size_t *)(message + 1);
+	size_t *nb_ids = (size_t *)(payload);
 	size_t page_msg_sz =
 		sizeof(size_t) + sizeof(struct node_id) + PAGE_SIZE;
 	void *addr = (void *)(nb_ids + 1);
@@ -303,16 +279,13 @@ static void RECV_PAGE_LEAVE_handler(struct message *message)
 		const struct node_id *new_owner =
 			(struct node_id *)(page_id + 1);
 		const void *addr_np = (void *)(new_owner + 1);
-		update_page(*page_id, new_owner, &message->sender, addr_np,
+		update_page(*page_id, new_owner, sender, addr_np,
 			    RECV_PAGE_LEAVE);
 		addr += page_msg_sz;
 	}
 
 	// we ACK the changes to the leaver
-	struct message msg = { .message_type = ACK_RECV_PAGE };
-	send_message(&message->sender, &msg, sizeof(struct message));
+	char ack = 1;
+	send_message1(ACK_RECV_PAGE, sender, &ack, sizeof(char));
 	log_info("ACK sent from new Owner of %zu pages\n", *nb_ids);
-
-	// lock node_list
-	free(remove_node(&node_list, &message->sender));
 }

@@ -3,8 +3,9 @@
 
 #include "data_transfer.h"
 #include "data_transfer_utils.h"
-#include "../network/network.h"
+#include "../network/network.new.h"
 #include "../utils/cond_var.h"
+#include "../utils/counter_cond_var.h"
 #include "../utils/utils.h"
 #include "../memory/memory.h"
 // #define DISABLE_LOG
@@ -20,11 +21,11 @@ void set_new_owner(size_t page_id, struct node_id *new_owner)
 	pthread_mutex_unlock(&(page_cv + page_id)->lock);
 }
 
-static void INVALIDATION_handler(struct message *message)
+static void handle_INVALIDATION(struct node_id *sender, void *payload)
 {
-	size_t *page_id = (size_t *)(message + 1);
+	size_t *page_id = (size_t *)(payload);
 	memory_lock(*page_id);
-	set_new_owner(*page_id, &message->sender);
+	set_new_owner(*page_id, sender);
 }
 
 void sync_page(size_t page_id)
@@ -37,41 +38,39 @@ void sync_page(size_t page_id)
 		pthread_mutex_unlock(&cv->lock);
 		return;
 	}
-	(page_cv + page_id)->predicate = false;
+	cv->predicate = false;
 
 	// ask for a page and wait until the page is synched
-	size_t ms_sz;
-	struct message *msg = build_ASK_PAGE_message(page_id, &ms_sz);
+	size_t payload_sz;
+	void *payload = build_ASK_PAGE_message(page_id, &payload_sz);
+	send_message1(ASK_PAGE, owner, payload, payload_sz);
 
 	log_info("waiting for page %zu\n", page_id);
-	send_wait_message_nolock(owner, msg, ms_sz, page_cv + page_id);
-
+	wait_on_cond(cv, false);
 	log_info("synched page %zu\n", page_id);
-	(page_cv + page_id)->predicate = true;
+
 	pthread_mutex_unlock(&cv->lock);
-	free_message(msg);
+	free(payload);
 }
 
 void init_data_transfer(unsigned int nb_pages, struct node_id *owners)
 {
-	addHandler(RECV_PAGE, NULL, RECV_PAGE_handler);
-	addHandler(ASK_PAGE, NULL, ASK_PAGE_handler);
-	addHandler(ACK_RECV_PAGE, NULL, ACK_RECV_PAGE_handler);
-	addHandler(RECV_PAGE_LEAVE, NULL, RECV_PAGE_LEAVE_handler);
-	addHandler(DT_LEAVE, NULL, DT_LEAVE_handler);
-	addHandler(INVALIDATION, NULL, INVALIDATION_handler);
+	add_net_handler(ASK_PAGE, handle_ASK_PAGE);
+	add_net_handler(RECV_PAGE, handle_RECV_PAGE);
+	add_net_handler(RECV_PAGE_LEAVE, handle_RECV_PAGE_LEAVE);
+	add_net_handler(ACK_RECV_PAGE, handle_ACK_RECV_PAGE);
+	add_net_handler(DT_LEAVE, handle_DT_LEAVE);
+	add_net_handler(ACK_DT_LEAVE, handle_ACK_DT_LEAVE);
+	add_net_handler(INVALIDATION, handle_INVALIDATION);
 
 	page_owners = malloc(nb_pages * sizeof(struct node_id));
 	page_cv = malloc(nb_pages * sizeof(struct cond_var));
 	page_state = malloc(nb_pages * sizeof(bool));
 
-	pthread_mutex_init(&(dt_cv).lock, NULL);
-	pthread_cond_init(&(dt_cv).cond, NULL);
-	dt_cv.predicate = true;
+	init_counter(&ack_counter);
+	init_cond(&leaving_cv);
 	for (unsigned int i = 0; i < nb_pages; i++) {
-		pthread_mutex_init(&(page_cv + i)->lock, NULL);
-		pthread_cond_init(&(page_cv + i)->cond, NULL);
-		(page_cv + i)->predicate = true;
+		init_cond(page_cv + i);
 		page_state[i] = !owners;
 		if (!owners)
 			node_copy(page_owners + i, &me);
@@ -83,21 +82,20 @@ void init_data_transfer(unsigned int nb_pages, struct node_id *owners)
 void clean_data_transfer(void)
 {
 	for (unsigned int i = 0; i < nb_pages; i++) {
-		pthread_mutex_destroy(&(page_cv + i)->lock);
-		pthread_cond_destroy(&(page_cv + i)->cond);
+		destroy_cond(page_cv + i);
 	}
-	pthread_mutex_destroy(&dt_cv.lock);
-	pthread_cond_destroy(&dt_cv.cond);
+	destroy_cond(&leaving_cv);
+	destroy_counter(&ack_counter);
 	free(page_owners);
 	free(page_cv);
 	free(page_state);
 }
 
-void exit_data_transfer(const struct node_id new_owner)
+void exit_data_transfer(struct node_id new_owner)
 {
 	// we wont treat any request further here
-	addHandler(RECV_PAGE, NULL, NULL);
-	addHandler(ASK_PAGE, NULL, NULL);
+	add_net_handler(ASK_PAGE, NULL);
+	add_net_handler(RECV_PAGE, NULL);
 	size_t nb_owned_pages = 0;
 	size_t index_pages[nb_pages];
 
@@ -111,31 +109,29 @@ void exit_data_transfer(const struct node_id new_owner)
 		}
 		pthread_mutex_unlock(&cv->lock);
 	}
-	dt_cv.predicate = false;
+
 	log_info("Inform new Owner\n");
-	size_t ms_sz;
-	struct message *msg =
-		build_multiple_PAGE_message(index_pages, nb_owned_pages, &ms_sz,
-					    &new_owner, RECV_PAGE_LEAVE);
-	send_wait_message(&new_owner, msg, ms_sz, &dt_cv);
-	free_message(msg);
+	size_t payload_sz;
+	void *payload = build_multiple_PAGE_message(index_pages, nb_owned_pages,
+						    &payload_sz, &new_owner,
+						    RECV_PAGE_LEAVE);
+	send_message1(RECV_PAGE_LEAVE, &new_owner, payload, payload_sz);
+	wait_on_cond(&leaving_cv, false);
+	free(payload);
 	log_info("ACK recved from new Owner\n");
 
 	// broadcast to each other node, the info about the new owner
-	pthread_mutex_lock(&umtx);
-	msg = build_DT_LEAVE_message(index_pages, nb_owned_pages, &new_owner,
-				     &ms_sz);
-	struct node_list *n = &node_list;
-	log_info("Informing %u nodes that i leave\n", nb_nodees - 1);
-	list_for_each_entry_continue(n, &node_list.nlist, nlist) {
-		if (node_equal(&n->node, &new_owner))
-			continue;
-		dt_cv.predicate = false;
-		send_wait_message(&n->node, msg, ms_sz, &dt_cv);
-	}
+	payload = build_DT_LEAVE_message(index_pages, nb_owned_pages,
+					 &new_owner, &payload_sz);
+	const struct node_id *except[] = { &new_owner, NULL };
+	int nb_sent = broadcast_message1(DT_LEAVE, except, payload, payload_sz);
+	log_info("Informed %d nodes that i leave\n", nb_sent);
+
+	// wait for all the ACK
+	set_counter(&ack_counter, nb_sent, false);
+	wait_on_counter(&ack_counter, false);
 	log_info("ACKED all, leave done !\n");
-	free_message(msg);
-	pthread_mutex_unlock(&umtx);
+	free(payload);
 
 	for (size_t i = 0; i < nb_owned_pages; i++)
 		pthread_mutex_unlock(&(page_cv + index_pages[i])->lock);
@@ -145,15 +141,11 @@ void exit_data_transfer(const struct node_id new_owner)
 
 void send_invalidation(size_t page_index)
 {
-	size_t msg_size = sizeof(struct message) + sizeof(size_t);
-	struct message *msg = malloc(msg_size);
-	msg->message_type = INVALIDATION;
-	size_t *page_id = (size_t *)(msg + 1);
+	size_t payload_sz = sizeof(size_t);
+	void *payload = malloc(payload_sz);
+	size_t *page_id = (size_t *)(payload);
 	*page_id = page_index;
-	pthread_mutex_lock(&umtx);
-	broadcast_message(msg, msg_size);
-	pthread_mutex_unlock(&umtx);
-	free_message(msg);
+	broadcast_message1(INVALIDATION, NULL, payload, payload_sz);
 	set_new_owner(page_index, &me);
 }
 

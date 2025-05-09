@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../network/message.h"
+#include "../network/utils/node_id.h"
 
 /// @brief An array that contains for each page it's owner
 extern struct node_id *page_owners;
@@ -27,7 +27,7 @@ extern void clean_data_transfer();
 /// @brief Leaves the data transfer module and cleans it
 /// @param new_owner The new owner of the page that we own
 /// @details We assume that this function is only called once.
-extern void exit_data_transfer(const struct node_id new_owner);
+extern void exit_data_transfer(struct node_id new_owner);
 
 extern void send_invalidation(size_t page_index);
 
