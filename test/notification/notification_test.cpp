@@ -24,16 +24,17 @@ TEST(NotificationTest, CreateDestroyChan)
 struct cond_var wait_until_msg_receive = COND_VAR_INIT;
 static void sendInt(int fd)
 {
-    log_debug("message receive");
+	log_debug("message receive");
 	int vals[5] = { 0 };
 	EXPECT_EQ(read(fd, vals, sizeof(vals)), sizeof(vals));
 	unlock_cond(&wait_until_msg_receive, false);
 	EXPECT_EQ(vals[0], 1);
-    EXPECT_EQ(vals[1], 2);
-    EXPECT_EQ(vals[2], 3);
-    EXPECT_EQ(vals[3], 4);
-    EXPECT_EQ(vals[4], 5);
+	EXPECT_EQ(vals[1], 2);
+	EXPECT_EQ(vals[2], 3);
+	EXPECT_EQ(vals[3], 4);
+	EXPECT_EQ(vals[4], 5);
 }
+
 TEST(NotificationTest, WriteReadInChan)
 {
 	init_logger(stdout);
@@ -42,12 +43,50 @@ TEST(NotificationTest, WriteReadInChan)
 	int fd = create_chan(sendInt);
 	ASSERT_GE(fd, -1);
 
-    int vals[5] = { 1, 2, 3, 4, 5};
+	int vals[5] = { 1, 2, 3, 4, 5 };
 
 	EXPECT_EQ(write(fd, vals, sizeof(vals)), sizeof(vals));
 
 	wait_on_cond(&wait_until_msg_receive, false);
 
 	EXPECT_EQ(destroy_chan(sendInt, fd), 0);
+	exit_comm();
+}
+
+static void sendWriteInt(int fd)
+{
+	log_debug("message receive");
+	int vals[5] = { 0 };
+	EXPECT_EQ(read(fd, vals, sizeof(vals)), sizeof(vals));
+	EXPECT_EQ(vals[0], 1);
+	EXPECT_EQ(vals[1], 2);
+	EXPECT_EQ(vals[2], 3);
+	EXPECT_EQ(vals[3], 4);
+	EXPECT_EQ(vals[4], 5);
+	EXPECT_EQ(write(fd, vals, sizeof(vals)), sizeof(vals));
+}
+
+TEST(NotificationTest, WriteReadWriteReadInChan)
+{
+	init_logger(stdout);
+	init_comm();
+
+	int fd = create_chan(sendWriteInt);
+	ASSERT_GE(fd, -1);
+
+	int vals[5] = { 1, 2, 3, 4, 5 };
+
+	EXPECT_EQ(write(fd, vals, sizeof(vals)), sizeof(vals));
+
+	int dest[5] = { 0 };
+
+	EXPECT_EQ(read(fd, dest, sizeof(dest)), sizeof(dest));
+	EXPECT_EQ(vals[0], dest[0]);
+	EXPECT_EQ(vals[1], dest[1]);
+	EXPECT_EQ(vals[2], dest[2]);
+	EXPECT_EQ(vals[3], dest[3]);
+	EXPECT_EQ(vals[4], dest[4]);
+
+	EXPECT_EQ(destroy_chan(sendWriteInt, fd), 0);
 	exit_comm();
 }

@@ -38,7 +38,7 @@ static void sigsev_handler(int sig, siginfo_t *info, void *ucontext)
 
 	if (!is_valid_address(info->si_addr)) {
 		log_error(
-			"SIGSEGV triggered on invalid adress %p, watch your program\n");
+			"SIGSEGV triggered on invalid adress %p, watch your program\n", info->si_addr);
 		char *reading = (curr_reading) ? "true" : "false";
 		char *writing = (curr_writing) ? "true" : "false";
 		printf("Node %s:%d accessed adresse %p with access read = %s and write = %s\n",
