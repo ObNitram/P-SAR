@@ -2,11 +2,11 @@ import subprocess
 import time
 
 # Arrays for the 2nd and 3rd arguments
-arg2_list = list(range(15, 25))
-arg3_list = [1000000]
+arg2_list = list(range(24, 40))
+arg3_list = [10]
 
 # Output file for timing results only
-output_file = "./benchmark/results_1000000v4.txt"
+output_file = "./benchmark/test2/results_scalling2.txt"
 
 with open(output_file, "w") as f:
     f.write("Arg2\tArg3\tTime(s)\n")

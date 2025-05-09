@@ -3,7 +3,7 @@ from collections import defaultdict
 
 
 # Fichier contenant les résultats
-filename = "./benchmark/results_1000000v3.txt"
+filename = "./benchmark/test2/results_scalling.txt"
 
 
 # Regrouper les résultats par valeur de arg3
@@ -32,7 +32,7 @@ for arg3, data in results_by_arg3.items():
 
     plt.figure(figsize=(10, 6))
     plt.plot(arg2_vals, time_vals, marker="o")
-    plt.title(f"Temps d'exécution pour un tableau de taille = {arg3}")
+    plt.title(f"Temps d'exécution pour un traitement de 5s par node")
     plt.xlabel("Nombre de nodes")
     plt.ylabel("Temps (s)")
     plt.grid(True)
