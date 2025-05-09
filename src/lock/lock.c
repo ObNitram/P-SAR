@@ -529,7 +529,7 @@ enum lock_status get_lock_status(const size_t page_id)
 }
 
 //return 0 on success -1 on error
-int leave_core(const struct node_id delegate)
+int exit_core(const struct node_id delegate)
 {
 	if (leaving || core_info == NULL)
 		return -1;

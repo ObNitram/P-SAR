@@ -15,6 +15,10 @@ void init_memory(int fd1)
 	lock_status_chan = fd1;
 }
 
+void exit_memory(void)
+{
+}
+
 // perm: PROT_NONE, PROT_EXEC, PROT_READ, PROT_WRITE
 void memory_protect(size_t index, int perm)
 {
