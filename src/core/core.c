@@ -365,6 +365,9 @@ static void handle_ASK_LOCK(struct message *message)
 			send_message(&working_page->have_token,
 				     (struct message *)&request,
 				     sizeof(struct slsm_message));
+			if (request.mode == WRITE) {
+				working_page->have_token = request.initiator;
+			}
 		}
 	}
 	pthread_mutex_unlock(&working_page->cond.lock);
