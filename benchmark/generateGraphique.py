@@ -3,7 +3,7 @@ from collections import defaultdict
 
 
 # Fichier contenant les résultats
-filename = "./benchmark/test2/results_scalling.txt"
+filename = "./benchmark/test2/results_scalling2.txt"
 
 
 # Regrouper les résultats par valeur de arg3

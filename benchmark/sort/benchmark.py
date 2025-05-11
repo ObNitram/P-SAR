@@ -6,7 +6,7 @@ arg2_list = list(range(2, 40))
 arg3_list = [10]
 
 # Output file for timing results only
-output_file = "./benchmark/test2/results_scalling5.txt"
+output_file = "./benchmark/sort/results_sort.txt"
 
 with open(output_file, "w") as f:
     f.write("Arg2\tArg3\tTime(s)\n")

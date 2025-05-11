@@ -64,7 +64,7 @@ void log_message_internal(const char *level, const char *message,
 		/* Format the message using snprintf with provided arguments */ \
 		snprintf(__log_buffer, sizeof(__log_buffer), fmt,               \
 			 ##__VA_ARGS__);                                        \
-		log_message_internal(level, __log_buffer, __FILE__,             \
+		log_message_internal(level, __log_buffer, "",             \
 				     __FUNCTION__, __LINE__);                   \
 	} while (0)
 

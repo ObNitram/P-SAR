@@ -3,17 +3,114 @@
 #include "library.h"
 #include "utils/logger.h"
 
-#include <string.h>
+#include <stdio.h>
 #include <sys/wait.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <stdarg.h>
+#include <time.h>
+#include <string.h>
+
 const char *localhost = "127.0.0.1";
 
 const size_t page_size = 4096;
 
+FILE *logfile;
+
+void fprint_with_time(const char *format, ...)
+{
+	struct timespec ts;
+	char time_buffer[64];
+
+	// Get high precision current time
+	clock_gettime(CLOCK_REALTIME, &ts);
+
+	// Format time as [seconds.nanoseconds]
+	snprintf(time_buffer, sizeof(time_buffer), "[%ld.%09ld] ", ts.tv_sec,
+		 ts.tv_nsec);
+
+	// Print the time to the file
+	fputs(time_buffer, logfile);
+
+	// Handle the variable argument list like printf
+	va_list args;
+	va_start(args, format);
+	vfprintf(logfile, format, args);
+	va_end(args);
+
+	// Optional: flush immediately
+	fflush(logfile);
+}
+
+// Fonction utilitaire pour fusionner deux segments triés
+void merge(char *dest, char *left, size_t left_size, char *right,
+	   size_t right_size)
+{
+	size_t i = 0, j = 0, k = 0;
+	while (i < left_size && j < right_size) {
+		if (left[i] <= right[j]) {
+			dest[k++] = left[i++];
+		} else {
+			dest[k++] = right[j++];
+		}
+	}
+	// Copie du reste
+	while (i < left_size)
+		dest[k++] = left[i++];
+	while (j < right_size)
+		dest[k++] = right[j++];
+}
+
+// Fonction principale : fusionne récursivement les segments triés
+void merge_sort(char *tab, size_t tab_size, size_t segment_size)
+{
+	if (segment_size >= tab_size) {
+		return; // rien à faire si tout est déjà un seul segment
+	}
+
+	// Allocation d’un buffer temporaire pour la fusion
+	char *buffer = malloc(tab_size);
+	if (!buffer) {
+		// gestion simple de l'erreur d'allocation
+		return;
+	}
+
+	size_t num_segments = tab_size / segment_size;
+
+	// Double la taille du segment à chaque itération
+	for (size_t current_size = segment_size; current_size < tab_size;
+	     current_size *= 2) {
+		for (size_t i = 0; i < tab_size; i += 2 * current_size) {
+			size_t left_start = i;
+			size_t right_start = i + current_size;
+			size_t left_size = current_size;
+			size_t right_size =
+				(right_start + current_size <= tab_size) ?
+					current_size :
+					(tab_size - right_start);
+
+			// Fusionne les deux sous-tableaux si le second existe
+			if (right_start < tab_size) {
+				merge(buffer + left_start, tab + left_start,
+				      left_size, tab + right_start, right_size);
+			} else {
+				// Copie le reste s'il n'y a pas de paire
+				memcpy(buffer + left_start, tab + left_start,
+				       left_size);
+			}
+		}
+
+		// Copie le buffer dans le tableau d'origine
+		memcpy(tab, buffer, tab_size);
+	}
+
+	free(buffer);
+}
+
+// Function to swap two integers
 static void swap(char *a, char *b)
 {
 	int temp = *a;
@@ -62,21 +159,6 @@ void sort(char *tab, const size_t tab_size)
 	quick_sort(tab, 0, tab_size - 1);
 }
 
-bool is_sorted(const char *tab, const size_t tab_size)
-{
-	if (tab_size == 0) {
-		return true; // If the array is empty, it's considered sorted
-	}
-	for (size_t i = 0; i < tab_size - 1; i++) {
-		if (tab[i] > tab[i + 1]) {
-			// log_error("Array is not sorted at index %zu: %d > %d",
-			//           i, tab[i], tab[i + 1]);
-			return false;
-		}
-	}
-	return true;
-}
-
 void worker_node(const size_t node_id, const int server_port,
 		 const size_t worker_count, const size_t tab_size)
 {
@@ -103,6 +185,7 @@ void worker_node(const size_t node_id, const int server_port,
 	unlock_write(node_tab, segment_size);
 
 	leave_DSM();
+
 	log_info("(%ld) Worker node End", node_id);
 }
 
@@ -114,58 +197,20 @@ void print_tab(const int *tab, const size_t tab_size)
 	printf("\n");
 }
 
-void merge_segments(char *tab, const size_t tab_size, const size_t segment_size)
+
+bool is_sorted(const char *tab, const size_t tab_size)
 {
-	// Verify that tab_size is a multiple of segment_size
-	ensure_error(
-		tab_size % segment_size == 0,
-		"The size of the array is not divisible by the number of segments");
-
-	size_t num_segments = tab_size / segment_size;
-
-	// Allocate temporary buffer to hold merged output
-	char *tmp = (char *)malloc(tab_size);
-	ensure_error(tmp != NULL,
-		     "Memory allocation failed for temporary buffer");
-
-	// Allocate array of indices, one per segment, all initialized to 0
-	size_t *indices = (size_t *)calloc(num_segments, sizeof(size_t));
-	ensure_error(indices != NULL,
-		     "Memory allocation failed for indices array");
-
-	// Merge loop: for each output position
-	for (size_t out = 0; out < tab_size; ++out) {
-		char min_val = 0;
-		size_t min_seg = (size_t)-1;
-
-		// Find the smallest available element among the segments
-		for (size_t s = 0; s < num_segments; ++s) {
-			if (indices[s] < segment_size) {
-				char v = tab[s * segment_size + indices[s]];
-				// If first candidate or v is smaller than current min
-				if (min_seg == (size_t)-1 || v < min_val) {
-					min_val = v;
-					min_seg = s;
-				}
-			}
-		}
-
-		// Sanity check: there must be at least one element left
-		ensure_error(min_seg != (size_t)-1,
-			     "No more elements to merge");
-
-		// Write the chosen value into the tmp buffer
-		tmp[out] = min_val;
-		// Advance the index in that segment
-		indices[min_seg]++;
+	if (tab_size == 0) {
+		return true; // If the array is empty, it's considered sorted
 	}
-
-	// Copy merged result back into the original array
-	memcpy(tab, tmp, tab_size);
-
-	// Clean up
-	free(tmp);
-	free(indices);
+	for (size_t i = 0; i < tab_size - 1; i++) {
+		if (tab[i] > tab[i + 1]) {
+			// log_error("Array is not sorted at index %zu: %d > %d",
+			//           i, tab[i], tab[i + 1]);
+			return false;
+		}
+	}
+	return true;
 }
 
 void main_node(int server_port, const size_t worker_count,
@@ -175,17 +220,16 @@ void main_node(int server_port, const size_t worker_count,
 	char *tab = Init_DSM(tab_size, localhost, server_port);
 	log_info("DSM initialized");
 
-	// log_info("Filling DSM with random values");
+	log_info("Filling DSM with random values");
 	lock_write(tab, tab_size);
 	for (char i = 0; i < tab_size; i++) {
-		tab[i] = rand();
+		tab[i] = (char)rand();
 	}
 	unlock_write(tab, tab_size);
 
-	sleep(4);
-
 	while (true) {
 		sleep(1);
+		log_info("(0) Waiting for all nodes to finish sorting");
 
 		bool tab_is_sorted = true;
 
@@ -211,16 +255,17 @@ void main_node(int server_port, const size_t worker_count,
 	}
 
 	lock_write(tab, tab_size);
-	log_info("All segments are sorted. Merging segments...");
-	merge_segments(tab, tab_size, tab_size / worker_count);
-	log_info("All segments merged");
+	const size_t segment_size = tab_size / worker_count;
+	log_info("Merging sorted segments");
+	merge_sort(tab, tab_size, worker_count);
+	log_info("Sorted segments merged");
 	unlock_write(tab, tab_size);
 
 	lock_read(tab, tab_size);
-	if (is_sorted(tab, tab_size)) {
-		log_info("The array is sorted");
+	if(!is_sorted(tab, tab_size)) {
+		log_error("Main node: Array is not sorted after merge");
 	} else {
-		log_error("The array is not sorted");
+		log_info("Main node: Array is sorted after merge");
 	}
 	unlock_read(tab, tab_size);
 
@@ -266,7 +311,18 @@ int main(int argc, char **argv)
 		"Start Program with param: port=%d, number_of_node=%zu, tab_size=%zu",
 		port, number_of_node, tab_size);
 
-	tab_size = tab_size * page_size * number_of_node;
+	tab_size = tab_size * page_size;
+
+	char buf[256];
+	snprintf(buf, sizeof(buf), "log_leaving_%zu_%zu.txt", number_of_node,
+		 tab_size);
+
+	logfile = fopen(buf, "a");
+
+	if (!logfile) {
+		perror("Failed to open log file");
+		return 1;
+	}
 
 	int son = fork();
 	if (son == -1) {
