@@ -39,4 +39,4 @@ jobs:
         run: make
 
       - name: run Benchmark
-        run: time timeout 1m ./build/main-psar 10010 5
+        run: time timeout 1m ./build/main-psar 10000 15 10
