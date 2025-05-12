@@ -157,6 +157,7 @@ void *Init_DSM(size_t size, const char *interface, int port)
 {
 	// memory init
 	cv.predicate = false;
+	cv2.predicate = false;
 	nb_pages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
 	dsm = mmap(0, nb_pages * PAGE_SIZE, PROT_READ | PROT_WRITE,
 		   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -189,6 +190,7 @@ void *join_DSM(const char *host, int connect_port, const char *interface,
 	       int server_port)
 {
 	cv.predicate = false;
+	cv2.predicate = false;
 	init_nodes(&node_list);
 	start_server(server_port, interface);
 	set_all_handlers();
@@ -245,6 +247,17 @@ exit:
 	free_DSM();
 	free_nodes(&node_list);
 	return NULL;
+}
+
+void *leave_last(void)
+{
+	pthread_mutex_lock(&umtx);
+	leave_all = true;
+	while (!cv2.predicate) {
+		pthread_cond_wait(&cv2.cond, &umtx);
+	}
+	pthread_mutex_unlock(&umtx);
+	return leave_DSM();
 }
 
 void lock_read(void *adr, size_t s)

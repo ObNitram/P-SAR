@@ -12,6 +12,8 @@ extern "C" {
 #include "core/data_transfer.h"
 #include "utils/utils.h"
 #include "sigsegv_handler/sigsegv.h"
+#include <semaphore.h>
+#include <fcntl.h>
 }
 
 static const char *addr_init = "127.0.0.1";
@@ -50,7 +52,16 @@ TEST(data_transfer, join_then_try_sync_a_page)
 {
 	init_logger(stdout);
 
+	sem_t *sem1, *sem2;
+
 	log_info("started test\n");
+	sem1 = sem_open("/sem1", O_CREAT, 0644, 0);
+	sem2 = sem_open("/sem2", O_CREAT, 0644, 0);
+
+	if (sem1 == SEM_FAILED || sem2 == SEM_FAILED) {
+		perror("sem_open");
+		exit(EXIT_FAILURE);
+	}
 
 	pid_t pid = fork();
 	int eq = 0;
@@ -70,8 +81,10 @@ TEST(data_transfer, join_then_try_sync_a_page)
 			*i = *(i - 1) + (i - tab);
 		}
 
+		sem_post(sem1);
+
 		// wait te recv an ASK_PAGE request
-		sleep(3);
+		sem_wait(sem2);
 
 		stop_server();
 		clean_data_transfer();
@@ -81,9 +94,19 @@ TEST(data_transfer, join_then_try_sync_a_page)
 		wait(NULL);
 		nb_pages = 0;
 		nb_nodees = 0;
+
+		if (sem_close(sem1) == -1 || sem_close(sem2) == -1) {
+			perror("sem_close");
+			exit(EXIT_FAILURE);
+		}
+
+		if (sem_unlink("/sem1") == -1 || sem_unlink("/sem2") == -1) {
+			perror("sem_unlink");
+			exit(EXIT_FAILURE);
+		}
 	} else {
-		// wait until INIT is setup
-		sleep(1);
+		// wait until parent is setup
+		sem_wait(sem1);
 
 		join_DSM(addr_init, init_port, LOCALHOST, joiner_port);
 		log_info("joined the DSM\n");
@@ -95,13 +118,12 @@ TEST(data_transfer, join_then_try_sync_a_page)
 		eq = check_page_owners_equality();
 		ASSERT_EQ(eq, 1);
 
-		sleep(1);
-
 		sync_page(0);
 		for (size_t i = 0; i < nb_pages_; i++) {
 			memory_unlock_write(i);
 		}
 		log_info("synced page 0\n");
+		sem_post(sem2);
 
 		int *tab = (int *)dsm;
 		ASSERT_EQ(*tab, 0);

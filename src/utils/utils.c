@@ -3,6 +3,8 @@
 #include "utils.h"
 #include "logger.h"
 
+struct cond_var cv2 = COND_VAR_INIT;
+bool leave_all = false;
 pthread_mutex_t umtx = PTHREAD_MUTEX_INITIALIZER;
 void *dsm = NULL;
 unsigned int nb_pages = 0;
@@ -37,8 +39,13 @@ struct node_list *remove_node(struct node_list *list, struct node_id *node)
 	list_for_each_entry_safe_continue(n1, n2, &list->nlist, nlist) {
 		if (node_equal(node, &n1->node)) {
 			list_del(&n1->nlist);
-			if (list == &node_list)
+			if (list == &node_list) {
 				nb_nodees--;
+				if (nb_nodees == 1 && leave_all) {
+					cv2.predicate = true;
+					pthread_cond_signal(&cv2.cond);
+				}
+			}
 			return n1;
 		}
 	}

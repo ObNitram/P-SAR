@@ -36,6 +36,7 @@ pthread_mutex_t con_buff_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static size_t buffer_size;
 
+static pthread_mutex_t lock_send;
 int epollfd;
 
 /// @brief Search for a given node if a socket is in the connection_buffer cache.
@@ -332,6 +333,7 @@ void *server_thread(void *arg)
 
 void start_server(const int port, const char *interface)
 {
+	pthread_mutex_init(&lock_send, NULL);
 	log_info("Starting server on port %i with interface %s", port,
 		 interface);
 
@@ -423,11 +425,13 @@ static int send_all(const int sockfd, const char *data, const size_t size)
 static int send_message_internal(int sockfd, struct message *message,
 				 const size_t message_size)
 {
+	pthread_mutex_lock(&lock_send);
 	if (send_all(sockfd, (char *)&message_size, sizeof(message_size)) ==
 	    -1) {
 		log_error("bad sock %d", sockfd);
 		perror("send datasize");
 		close(sockfd);
+		pthread_mutex_unlock(&lock_send);
 		return -1;
 	}
 
@@ -435,8 +439,10 @@ static int send_message_internal(int sockfd, struct message *message,
 		log_error("data failed");
 		perror("send data");
 		close(sockfd);
+		pthread_mutex_unlock(&lock_send);
 		return -1;
 	}
+	pthread_mutex_unlock(&lock_send);
 
 	log_info("send success");
 

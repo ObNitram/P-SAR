@@ -15,6 +15,8 @@ struct node_list {
 	struct list_head nlist;
 };
 
+extern struct cond_var cv2;
+extern bool leave_all;
 extern struct node_list node_list;
 extern unsigned int nb_nodees;
 extern void *dsm;

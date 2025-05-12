@@ -3,27 +3,26 @@
 #include "library.h"
 #include "utils/logger.h"
 
+#include <string.h>
 #include <sys/wait.h>
 #include <stdbool.h>
-
-#include <stddef.h>  // for size_t
+#include <stddef.h>
 #include <stdlib.h>
-
+#include <unistd.h>
 
 const char *localhost = "127.0.0.1";
 
+const size_t page_size = 4096;
 
-// Function to swap two integers
-static void swap(int *a, int *b)
+static void swap(char *a, char *b)
 {
 	int temp = *a;
 	*a = *b;
 	*b = temp;
 }
 
-
 // Partition function for Quick Sort
-static int partition(int *tab, int low, int high)
+static int partition(char *tab, int low, int high)
 {
 	// Choosing the last element as pivot
 	int pivot = tab[high];
@@ -42,7 +41,7 @@ static int partition(int *tab, int low, int high)
 }
 
 // Recursive Quick Sort function
-static void quick_sort(int *tab, int low, int high)
+static void quick_sort(char *tab, int low, int high)
 {
 	if (low < high) {
 		// Partition the array and get the pivot index
@@ -55,7 +54,7 @@ static void quick_sort(int *tab, int low, int high)
 }
 
 // Public function to sort an array of integers in ascending order using Quick Sort
-void sort(int *tab, const size_t tab_size)
+void sort(char *tab, const size_t tab_size)
 {
 	if (tab_size == 0) {
 		return; // If the array is empty, do nothing
@@ -63,8 +62,7 @@ void sort(int *tab, const size_t tab_size)
 	quick_sort(tab, 0, tab_size - 1);
 }
 
-
-bool is_sorted(const int *tab, const size_t tab_size)
+bool is_sorted(const char *tab, const size_t tab_size)
 {
 	if (tab_size == 0) {
 		return true; // If the array is empty, it's considered sorted
@@ -79,51 +77,31 @@ bool is_sorted(const int *tab, const size_t tab_size)
 	return true;
 }
 
-
 void worker_node(const size_t node_id, const int server_port,
-                 const size_t worker_count,
-                 const size_t tab_size)
+		 const size_t worker_count, const size_t tab_size)
 {
 	log_info("(%ld) Worker node Start", node_id);
-	const size_t raw_tab_size = tab_size * sizeof(int);
 
-	int *tab = join_DSM(localhost, server_port,
-	                    localhost, server_port + node_id);
+	char *tab = join_DSM(localhost, server_port, localhost,
+			     server_port + node_id);
 
-	const size_t raw_segment_size = raw_tab_size / worker_count;
-	ensure_error(raw_tab_size % worker_count == 0,
-	             "The size of the array is not divisible by the number of nodes");
 	const size_t segment_size = tab_size / worker_count;
-	ensure_error(tab_size % worker_count == 0,
-	             "The size of the array is not divisible by the number of nodes");
 
 	const size_t tab_offset = (node_id - 1) * segment_size;
-	int *node_tab = tab + tab_offset;
-	log_info("(%ld) Will sort %lu to %lu, total size is %lu",
-	         node_id, tab_offset, tab_offset + segment_size, tab_size);
 
-	int *end_tab = node_tab + tab_size;
+	char *node_tab = tab + tab_offset;
 
-	if (ensure_error(tab<= node_tab && node_tab <= end_tab,
-	                 "The segment start is not in the array")) {
-		assert(true);
-	}
-	int *end_segment = node_tab + segment_size;
-	if (ensure_error(node_tab <= end_segment && end_segment <= end_tab,
-	                 "The segment end is not in the array")) {
-		assert(true);
-	}
-
-	lock_write(node_tab, raw_segment_size);
+	lock_write(node_tab, segment_size);
 	log_info("(%ld) Sorting segment %lu to %lu, total size is %lu)",
-	         node_id, tab_offset, tab_offset + segment_size, tab_size);
-	sort(node_tab, segment_size);
-	log_info("(%ld) Sorted segment %lu to %lu, total size is %lu)",
-	         node_id, tab_offset, tab_offset + segment_size, tab_size);
-	unlock_write(node_tab, raw_segment_size);
+		 node_id, tab_offset, tab_offset + segment_size, tab_size);
 
-	sleep(10);
-	log_info("(%ld) Worker leaving...", node_id);
+	sort(node_tab, segment_size);
+
+	log_info("(%ld) Sorted segment %lu to %lu, total size is %lu)", node_id,
+		 tab_offset, tab_offset + segment_size, tab_size);
+
+	unlock_write(node_tab, segment_size);
+
 	leave_DSM();
 	log_info("(%ld) Worker node End", node_id);
 }
@@ -136,50 +114,95 @@ void print_tab(const int *tab, const size_t tab_size)
 	printf("\n");
 }
 
-void main_node(int server_port, const size_t worker_count, size_t tab_size)
+void merge_segments(char *tab, const size_t tab_size, const size_t segment_size)
 {
-	const size_t row_tab_size = tab_size * sizeof(int);
+	// Verify that tab_size is a multiple of segment_size
+	ensure_error(
+		tab_size % segment_size == 0,
+		"The size of the array is not divisible by the number of segments");
 
-	// Allocate and initialize the DSM
+	size_t num_segments = tab_size / segment_size;
+
+	// Allocate temporary buffer to hold merged output
+	char *tmp = (char *)malloc(tab_size);
+	ensure_error(tmp != NULL,
+		     "Memory allocation failed for temporary buffer");
+
+	// Allocate array of indices, one per segment, all initialized to 0
+	size_t *indices = (size_t *)calloc(num_segments, sizeof(size_t));
+	ensure_error(indices != NULL,
+		     "Memory allocation failed for indices array");
+
+	// Merge loop: for each output position
+	for (size_t out = 0; out < tab_size; ++out) {
+		char min_val = 0;
+		size_t min_seg = (size_t)-1;
+
+		// Find the smallest available element among the segments
+		for (size_t s = 0; s < num_segments; ++s) {
+			if (indices[s] < segment_size) {
+				char v = tab[s * segment_size + indices[s]];
+				// If first candidate or v is smaller than current min
+				if (min_seg == (size_t)-1 || v < min_val) {
+					min_val = v;
+					min_seg = s;
+				}
+			}
+		}
+
+		// Sanity check: there must be at least one element left
+		ensure_error(min_seg != (size_t)-1,
+			     "No more elements to merge");
+
+		// Write the chosen value into the tmp buffer
+		tmp[out] = min_val;
+		// Advance the index in that segment
+		indices[min_seg]++;
+	}
+
+	// Copy merged result back into the original array
+	memcpy(tab, tmp, tab_size);
+
+	// Clean up
+	free(tmp);
+	free(indices);
+}
+
+void main_node(int server_port, const size_t worker_count,
+	       const size_t tab_size)
+{
 	log_info("Initializing DSM");
-	int *tab = Init_DSM(row_tab_size, localhost, server_port);
+	char *tab = Init_DSM(tab_size, localhost, server_port);
 	log_info("DSM initialized");
 
-	log_info("Filling DSM with random values");
-	lock_write(tab, row_tab_size);
-	for (int i = 0; i < tab_size; i++) {
+	// log_info("Filling DSM with random values");
+	lock_write(tab, tab_size);
+	for (char i = 0; i < tab_size; i++) {
 		tab[i] = rand();
 	}
-	unlock_write(tab, row_tab_size);
+	unlock_write(tab, tab_size);
 
-	log_info("Printing initial values");
-	lock_read(tab, row_tab_size);
-	for (int i = 0; i < 24; i++) {
-		printf("%d\n", tab[i]);
-	}
-	printf("\n");
-	unlock_read(tab, row_tab_size);
+	sleep(4);
 
 	while (true) {
 		sleep(1);
-		log_info("(0) Waiting for all nodes to finish sorting");
 
 		bool tab_is_sorted = true;
 
-		lock_read(tab, row_tab_size);
+		lock_read(tab, tab_size);
 
 		for (int i = 0; i < worker_count; ++i) {
 			size_t segment_size = tab_size / worker_count;
-			int *node_tab = tab + i * segment_size;
-			bool segment_is_sorted = is_sorted(
-				node_tab, segment_size);
+			char *node_tab = tab + i * segment_size;
+			bool segment_is_sorted =
+				is_sorted(node_tab, segment_size);
 			if (!segment_is_sorted) {
 				tab_is_sorted = false;
 				log_info("(0) Segment %d is not sorted", i);
 			}
 		}
 
-		unlock_read(tab, row_tab_size);
+		unlock_read(tab, tab_size);
 
 		if (tab_is_sorted) {
 			break;
@@ -187,19 +210,31 @@ void main_node(int server_port, const size_t worker_count, size_t tab_size)
 		log_info("(0) Not all nodes finished sorting. Waiting...");
 	}
 
-	log_info("The array is sorted");
+	lock_write(tab, tab_size);
+	log_info("All segments are sorted. Merging segments...");
+	merge_segments(tab, tab_size, tab_size / worker_count);
+	log_info("All segments merged");
+	unlock_write(tab, tab_size);
+
+	lock_read(tab, tab_size);
+	if (is_sorted(tab, tab_size)) {
+		log_info("The array is sorted");
+	} else {
+		log_error("The array is not sorted");
+	}
+	unlock_read(tab, tab_size);
 
 	leave_DSM();
 	log_info("(0) Main node End");
 }
 
-
 int main(int argc, char **argv)
 {
 	init_logger(stderr);
 
-	if (ensure_error(argc == 3, "Usage: %s <port> <number_of_nodes>",
-	                 argv[0])) {
+	if (ensure_error(argc == 4,
+			 "Usage: %s <port> <number_of_nodes> <tab_size>",
+			 argv[0])) {
 		return 1;
 	}
 
@@ -215,23 +250,30 @@ int main(int argc, char **argv)
 
 	const size_t number_of_node = atoi(argv[2]);
 
-	if (ensure_error(number_of_node<= 10,
-	                 "Number of nodes must be less than or equal to 10")) {
+	if (ensure_error(number_of_node <= 100,
+			 "Number of nodes must be less than or equal to 100")) {
 		return 1;
 	}
 	if (ensure_error(number_of_node > 0,
-	                 "Number of nodes must be greater than 0")) {
+			 "Number of nodes must be greater than 0")) {
 		return 1;
 	}
 
-	const size_t tab_size = number_of_node * 1000;
+	// const size_t tab_size = number_of_node * 1000;
+	size_t tab_size = atoi(argv[3]);
 
-	int sun = fork();
-	if (sun == -1) {
+	log_info(
+		"Start Program with param: port=%d, number_of_node=%zu, tab_size=%zu",
+		port, number_of_node, tab_size);
+
+	tab_size = tab_size * page_size * number_of_node;
+
+	int son = fork();
+	if (son == -1) {
 		perror("fork");
 		exit(EXIT_FAILURE);
 	}
-	if (sun == 0) {
+	if (son == 0) {
 		main_node(port, number_of_node, tab_size);
 		return 0;
 	}
@@ -241,12 +283,12 @@ int main(int argc, char **argv)
 	log_info("Starting worker nodes...");
 
 	for (size_t node_id = 1; node_id <= number_of_node; node_id++) {
-		sun = fork();
-		if (sun == -1) {
+		son = fork();
+		if (son == -1) {
 			perror("fork");
 			exit(EXIT_FAILURE);
 		}
-		if (sun == 0) {
+		if (son == 0) {
 			worker_node(node_id, port, number_of_node, tab_size);
 			return 0;
 		}
