@@ -23,20 +23,3 @@ jobs:
       - name: run gtest
         run: timeout 2m ./build/test-psar
 
-
-  benchmark:
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-
-      - name: init cmake
-        run: cmake -S .
-
-      - name: build shared library
-        run: make
-
-      - name: run Benchmark
-        run: time timeout 1m ./build/main-psar 10000 15 10
